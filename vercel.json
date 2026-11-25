@@ -1,5 +1,25 @@
 {
   "version": 2,
+  "functions": {
+    "app.py": {
+      "includeFiles": [
+        "*.html",
+        "*.css",
+        "*.js",
+        "*.png",
+        "*.jpg",
+        "*.jpeg",
+        "*.gif",
+        "*.svg",
+        "*.webp",
+        "*.ico",
+        "*.woff",
+        "*.woff2",
+        "*.ttf",
+        "*.otf"
+      ]
+    }
+  },
   "rewrites": [
     { "source": "/api/register", "destination": "/server.js" },
     { "source": "/api/enquiry", "destination": "/server.js" },

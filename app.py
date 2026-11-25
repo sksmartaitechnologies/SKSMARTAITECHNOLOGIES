@@ -1,3 +1,4 @@
+import os
 import re
 from pathlib import PurePosixPath
 
@@ -12,6 +13,7 @@ from certificate_store import (
 )
 
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__)
 SITE_PAGES = {
     "about",
@@ -84,7 +86,7 @@ CORS(
 
 @app.get("/")
 def home():
-    return send_from_directory(app.root_path, "index.html")
+    return send_from_directory(BASE_DIR, "index.html")
 
 
 @app.get("/<path:filename>")
@@ -92,9 +94,12 @@ def site_file(filename):
     path = PurePosixPath(filename)
     if any(part.startswith(".") for part in path.parts):
         abort(404)
+    if not path.suffix and filename in SITE_PAGES:
+        filename = f"{filename}.html"
+        path = PurePosixPath(filename)
     if path.suffix.lower() not in STATIC_EXTENSIONS:
         abort(404)
-    return send_from_directory(app.root_path, filename)
+    return send_from_directory(BASE_DIR, filename)
 
 
 def build_chat_reply(message):

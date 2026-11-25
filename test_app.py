@@ -40,6 +40,14 @@ class ChatbotTests(unittest.TestCase):
             finally:
                 response.close()
 
+    def test_selected_pages_are_available_at_clean_urls(self):
+        for page in ("careers", "verify"):
+            response = self.client.get(f"/{page}")
+            try:
+                self.assertEqual(response.status_code, 200)
+            finally:
+                response.close()
+
     def test_chatbot_is_available_on_existing_chatbot_pages(self):
         for page in ("about", "contact", "courses", "index", "services", "training"):
             response = self.client.get(f"/{page}.html")
