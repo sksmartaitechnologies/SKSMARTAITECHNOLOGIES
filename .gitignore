@@ -1,0 +1,8 @@
+.env*
+.vercel/
+node_modules/
+.venv/
+__pycache__/
+certificates.sqlite3
+certificates.sqlite3-shm
+certificates.sqlite3-wal

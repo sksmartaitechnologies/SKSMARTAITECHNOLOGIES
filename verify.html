@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Verify certificates issued by SK SMART AI TECHNOLOGIES using our live credential registry.">
+    <title>Certificate Verification | SK SMART AI TECHNOLOGIES</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar glass">
+        <div class="container nav-container">
+            <a href="index.html" class="brand-logo">
+                <div class="logo-img-box"><img src="https://raw.githubusercontent.com/sksmartaitechnologies/sksmartaitechnologies.github.io/main/logo.png" alt="SK Smart AI Logo"></div>
+                <div class="brand-text"><h2>SK SMART AI</h2><span>TECHNOLOGIES</span></div>
+            </a>
+            <ul class="nav-links" id="navLinks">
+                <li><a href="index.html">Home</a></li>
+                <li><a href="about.html">About Us</a></li>
+                <li class="dropdown">
+                    <a href="services.html" aria-haspopup="true" aria-expanded="false">Our Services <i class="fas fa-chevron-down"></i></a>
+                    <div class="dropdown-menu">
+                        <a href="services.html">Web &amp; Enterprise Engineering</a>
+                        <a href="services.html">AI &amp; Automation</a>
+                        <a href="services.html">Data &amp; Analytics</a>
+                        <a href="services.html">Digital Growth</a>
+                    </div>
+                </li>
+                <li class="dropdown">
+                    <a href="courses.html" aria-haspopup="true" aria-expanded="false">Courses <i class="fas fa-chevron-down"></i></a>
+                    <div class="dropdown-menu">
+                        <a href="courses.html">Data Science &amp; Machine Learning</a>
+                        <a href="courses.html">Python Full-Stack Development</a>
+                        <a href="courses.html">Data Analytics</a>
+                        <a href="courses.html">Generative AI</a>
+                        <a href="courses.html">Web Design</a>
+                        <a href="courses.html">Deep Learning</a>
+                    </div>
+                </li>
+                <li><a href="training.html#internships">Training &amp; Internships</a></li>
+                <li><a href="careers.html">Careers</a></li>
+                <li><a href="verify.html" class="active" aria-current="page">Verify Certificate</a></li>
+                <li><a href="contact.html">Contact</a></li>
+            </ul>
+            <button class="nav-menu-toggle" id="menuToggle" type="button" aria-controls="navLinks" aria-expanded="false" aria-label="Open navigation menu">
+                <span class="menu-toggle-icon" aria-hidden="true">☰</span>
+                <span class="menu-toggle-label">Menu</span>
+            </button>
+        </div>
+    </nav>
+
+    <header class="hero-section verify-hero">
+        <div class="container hero-container-single">
+            <div class="hero-content center-align">
+                <p class="eyebrow">Trusted credentials. Live verification.</p>
+                <h1>Official Credential &amp; Certificate <span>Verification</span></h1>
+                <p>Employers, academic institutions and students can authenticate certificates issued by SK SMART AI TECHNOLOGIES in real time against our credential records.</p>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <section class="content-section verify-primary-section" id="verifySection">
+            <div class="container">
+                <div class="verification-card glass reveal-scale">
+                    <div class="verification-heading"><span class="verification-icon"><i class="fas fa-shield-halved"></i></span><div><p class="eyebrow">Official verification portal</p><h2>Check a Certificate</h2><p>Enter the unique serial number printed on the credential.</p></div></div>
+                    <div class="verification-input-options">
+                        <div class="verification-option">
+                            <h3>Manual ID Input</h3>
+                            <div class="verification-controls">
+                                <label class="sr-only" for="certInput">Certificate Number</label>
+                                <input type="text" id="certInput" autocomplete="off" placeholder="Enter Certificate Number (e.g., SKAI-2026-001)" aria-describedby="sampleCertHelp">
+                                <button class="btn btn-primary" id="verifyBtn" type="button"><i class="fas fa-magnifying-glass"></i> Verify Certificate</button>
+                            </div>
+                            <p class="sample-cert-help" id="sampleCertHelp"><em>Try sample ID: <code>SKAI-2026-001</code></em> <button class="text-button" type="button" id="sampleCertBtn">Fill sample ID</button></p>
+                        </div>
+                        <div class="verification-option qr-scanner-option">
+                            <h3>Scan Certificate QR Code</h3>
+                            <div class="qr-scan-actions">
+                                <button class="btn btn-primary" id="startScanBtn" type="button"><i class="fas fa-camera"></i> Scan QR with Camera</button>
+                                <button class="btn btn-outline" id="stopScanBtn" type="button" hidden><i class="fas fa-stop"></i> Stop Camera</button>
+                            </div>
+                            <label class="qr-upload-label" for="qrImageInput">Or upload a QR image</label>
+                            <input class="qr-upload-input" id="qrImageInput" type="file" accept="image/*">
+                            <div class="qr-reader" id="qrReader" hidden aria-label="Certificate QR scanner preview"></div>
+                            <p class="qr-status" id="qrStatus" role="status" aria-live="polite"></p>
+                        </div>
+                    </div>
+                    <div id="verifyResult" class="verify-result" aria-live="polite"></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="content-section soft-section">
+            <div class="container">
+                <div class="section-header"><h2>How Verification Works &amp; <span>Security Standards</span></h2><p>Understand the lookup process, authenticated details and the safeguards behind every result.</p></div>
+                <div class="verification-info-grid">
+                    <article class="story-panel glass reveal-left">
+                        <h3>Verify in 3 Easy Steps</h3>
+                        <ol class="verification-guide">
+                            <li><strong>Locate the ID.</strong> Find the unique Certificate ID printed near the bottom corner of the credential.</li>
+                            <li><strong>Enter or scan.</strong> Type the ID above, scan its QR code or upload a clear QR image.</li>
+                            <li><strong>Review the live record.</strong> Compare the returned learner, program, issue date and status with the document.</li>
+                        </ol>
+                    </article>
+                    <article class="story-panel glass reveal">
+                        <h3>Digital &amp; QR Validation</h3>
+                        <p>Each issued credential uses a unique serial associated with its course and issue details. QR links can open <code>verify.html?cert=ID</code> and send the same ID through the live registry lookup as a manual search.</p>
+                        <p>Only a matching record in the issuer registry is shown as verified. If an ID is missing or the certificate details do not match, contact the issuer before relying on the document.</p>
+                    </article>
+                    <article class="story-panel glass reveal-right">
+                        <h3>Authenticated Details &amp; Security</h3>
+                        <ul class="verified-fields">
+                            <li><i class="fas fa-check"></i> Candidate full name</li>
+                            <li><i class="fas fa-check"></i> Program or course title</li>
+                            <li><i class="fas fa-check"></i> Completion / issue date</li>
+                            <li><i class="fas fa-check"></i> Unique credential serial</li>
+                            <li><i class="fas fa-check"></i> Registry-backed authentic status</li>
+                        </ul>
+                        <p>Results are validated against issuer records; a QR code alone is not proof of authenticity.</p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section class="content-section soft-section">
+            <div class="container">
+                <div class="section-header"><h2>Employer &amp; Institutional <span>Verification FAQ</span></h2><p>Guidance for recruiters, universities and credential holders.</p></div>
+                <div class="faq-list">
+                    <details class="faq-item"><summary>What if a certificate ID is not found?</summary><p>Check that the ID has been entered exactly as printed, including hyphens. If it still cannot be found, do not treat it as verified; contact <a href="contact.html">our team</a> with the ID and supporting details.</p></details>
+                    <details class="faq-item"><summary>How does QR code scanning work?</summary><p>The QR code opens this page with the certificate ID in the URL. The ID is then checked against the same live registry as a manual lookup.</p></details>
+                    <details class="faq-item"><summary>Can universities or employers request bulk checks?</summary><p>Yes. <a href="contact.html">Contact us</a> with your institution, verification volume and preferred process so we can coordinate a secure review.</p></details>
+                    <details class="faq-item"><summary>Which records can this portal verify?</summary><p>This portal checks credentials issued by SK SMART AI TECHNOLOGIES that have been entered into our digital registry.</p></details>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="container footer-content">
+            <div class="footer-brand"><h2>SK SMART AI TECHNOLOGIES</h2><p>Enterprise Digital &amp; AI Engineering, products, and project-led technical education.</p></div>
+            <div class="footer-links"><h4>Quick Links</h4><a href="index.html">Home</a><a href="about.html">About Us</a><a href="courses.html">Courses</a><a href="services.html">Services</a><a href="training.html#internships">Training &amp; Internships</a><a href="careers.html">Careers</a><a href="verify.html">Verify Certificate</a><a href="contact.html">Contact</a></div>
+            <div class="footer-contact"><h4>Connect</h4><p>+91 93614 83073</p><p>sksmartaitechnologies@gmail.com</p></div>
+        </div>
+        <div class="footer-bottom"><p>&copy; 2026 SK SMART AI TECHNOLOGIES. All rights reserved.</p></div>
+    </footer>
+
+    <button class="floating-register-btn" type="button" onclick="openRegisterModal()" title="Register Now">
+        <i class="fas fa-user-plus"></i>
+        <span>Register Now</span>
+    </button>
+
+    <div class="modal-overlay" id="registerModal"><div class="modal-content glass register-modal-content">
+        <button class="modal-close" type="button" onclick="closeModal('registerModal')" aria-label="Close registration"><i class="fas fa-times"></i></button>
+        <h3>Register Now</h3><p>Join SK Smart AI Technologies. Fill in your details below.</p>
+        <form id="registerForm"><div class="form-row"><div class="form-group"><label for="firstName">First Name</label><input id="firstName" required></div><div class="form-group"><label for="lastName">Last Name</label><input id="lastName" required></div></div>
+            <div class="form-row"><div class="form-group"><label for="regEmail">Email</label><input id="regEmail" type="email" required></div><div class="form-group"><label for="regPhone">Phone</label><input id="regPhone" type="tel" required></div></div>
+            <div class="form-group"><label for="selectCourse">Course</label><select id="selectCourse" required><option value="">Select Course</option><option>Artificial Intelligence</option><option>Data Science</option><option>Data Analytics</option><option>Full Stack Development</option><option>Generative AI &amp; Prompt Engineering</option><option>Web Design &amp; Frontend Engineering</option><option>Deep Learning</option></select></div>
+            <div class="form-group"><label for="selectStatus">Current Status</label><select id="selectStatus" required><option value="">Select Status</option><option value="Studying">Studying</option><option value="Job">Job / Working Professional</option></select></div>
+            <button type="submit" class="btn btn-primary">Submit Registration</button>
+        </form>
+    </div></div>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script src="script.js"></script>
+</body>
+</html>
