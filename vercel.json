@@ -1,32 +1,11 @@
 {
   "version": 2,
-  "functions": {
-    "app.py": {
-      "includeFiles": [
-        "*.html",
-        "*.css",
-        "*.js",
-        "*.png",
-        "*.jpg",
-        "*.jpeg",
-        "*.gif",
-        "*.svg",
-        "*.webp",
-        "*.ico",
-        "*.woff",
-        "*.woff2",
-        "*.ttf",
-        "*.otf"
-      ]
-    }
-  },
   "rewrites": [
     { "source": "/api/register", "destination": "/server.js" },
     { "source": "/api/enquiry", "destination": "/server.js" },
     { "source": "/api/careers", "destination": "/server.js" },
     { "source": "/api/certificates", "destination": "/server.js" },
     { "source": "/api/verify/(.*)", "destination": "/server.js" },
-    { "source": "/api/(.*)", "destination": "/app.py" },
-    { "source": "/(.*)", "destination": "/app.py" }
+    { "source": "/api/(.*)", "destination": "/app.py" }
   ]
 }
