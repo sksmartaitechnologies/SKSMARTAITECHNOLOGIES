@@ -1,11 +1,3 @@
 {
-  "version": 2,
-  "rewrites": [
-    { "source": "/api/register", "destination": "/server.js" },
-    { "source": "/api/enquiry", "destination": "/server.js" },
-    { "source": "/api/careers", "destination": "/server.js" },
-    { "source": "/api/certificates", "destination": "/server.js" },
-    { "source": "/api/verify/(.*)", "destination": "/server.js" },
-    { "source": "/api/(.*)", "destination": "/app.py" }
-  ]
+  "version": 2
 }

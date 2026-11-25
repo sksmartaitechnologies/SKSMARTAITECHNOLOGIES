@@ -2444,6 +2444,11 @@ section {
         gap: 18px;
     }
 
+    .nav-menu-toggle {
+        order: 2;
+        margin-left: auto;
+    }
+
     .nav-links {
         display: flex !important;
         flex: 1 1 auto;
@@ -2500,6 +2505,12 @@ section {
         gap: 8px;
     }
 
+    .brand-logo {
+        order: 0;
+        flex: 0 0 100%;
+        margin-right: 0;
+    }
+
     .nav-menu-toggle {
         display: inline-flex;
         order: 2;
@@ -2509,15 +2520,16 @@ section {
     .nav-links {
         display: flex !important;
         position: static;
-        order: 3;
+        order: 1;
         flex-direction: row;
         flex-wrap: nowrap;
         align-items: center;
         justify-content: flex-start;
         gap: 14px;
-        flex: 1 1 100%;
-        flex-basis: 100%;
-        width: 100%;
+        flex: 1 1 0;
+        flex-basis: 0;
+        width: auto;
+        min-width: 0;
         max-height: none;
         margin: 0;
         padding: 8px 0;

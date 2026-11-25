@@ -9,6 +9,7 @@ app.use(express.json());
 app.use(express.static('.'));
 
 const databaseUrl = process.env.DATABASE_URL?.trim();
+const FORM_SUCCESS_MESSAGE = 'Thank you! Our team will contact you shortly.';
 if (!databaseUrl) {
   console.error('DATABASE_URL is missing; form submissions cannot be saved to Neon PostgreSQL.');
 }
@@ -63,6 +64,14 @@ async function ensureFormTables() {
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
       `);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS users (
+          id BIGSERIAL PRIMARY KEY,
+          name TEXT NOT NULL,
+          email TEXT UNIQUE NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `);
     })().catch((error) => {
       formTablesSetup = null;
       throw error;
@@ -101,7 +110,7 @@ app.post('/api/register', async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
       values.map((value) => value.trim())
     );
-    return res.status(201).json({ success: true });
+    return res.status(200).json({ success: true, message: FORM_SUCCESS_MESSAGE });
   } catch (error) {
     return reportFormDatabaseError(res, 'registration', error);
   }
@@ -122,7 +131,7 @@ app.post('/api/enquiry', async (req, res) => {
        VALUES ($1, $2, $3, $4) RETURNING id`,
       values.map((value) => value.trim())
     );
-    return res.status(201).json({ success: true });
+    return res.status(200).json({ success: true, message: FORM_SUCCESS_MESSAGE });
   } catch (error) {
     return reportFormDatabaseError(res, 'enquiry', error);
   }
@@ -146,10 +155,129 @@ app.post('/api/careers', async (req, res) => {
        RETURNING id`,
       [full_name.trim(), email.trim(), phone.trim(), role.trim(), experience_level.trim(), portfolio_url?.trim() || null, message.trim()]
     );
-    return res.status(201).json({ success: true });
+    return res.status(200).json({ success: true, message: FORM_SUCCESS_MESSAGE });
   } catch (error) {
     return reportFormDatabaseError(res, 'career application', error);
   }
+});
+
+app.get('/api/users', async (_req, res) => {
+  try {
+    await ensureFormTables();
+    const result = await pool.query('SELECT name, email FROM users ORDER BY name');
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error('User list database query failed:', error);
+    return res.status(500).json({ error: 'Unable to load users.' });
+  }
+});
+
+app.post('/api/users', async (req, res) => {
+  const { name, email } = req.body || {};
+  if (!isNonEmptyString(name) || !isNonEmptyString(email)) {
+    return res.status(400).json({ success: false, error: 'Name and email are required.' });
+  }
+
+  try {
+    await ensureFormTables();
+    const result = await pool.query(
+      `INSERT INTO users (name, email)
+       VALUES ($1, $2)
+       ON CONFLICT (email) DO NOTHING
+       RETURNING id`,
+      [name.trim(), email.trim()]
+    );
+    if (!result.rows.length) {
+      return res.status(409).json({ success: false, error: 'A user with this email already exists.' });
+    }
+    return res.status(201).json({ success: true });
+  } catch (error) {
+    return reportFormDatabaseError(res, 'user', error);
+  }
+});
+
+function builtInChatReply(message) {
+  const normalized = message.toLowerCase();
+  if (/certificate|verify|verification/.test(normalized)) {
+    return {
+      reply: 'Enter your certificate ID on the verification page to check it against the official registry.',
+      action: 'verify_certificate'
+    };
+  }
+  if (/internship|workshop|bootcamp|placement/.test(normalized)) {
+    return {
+      reply: 'We offer hands-on 1-, 3- and 6-month internships, workshops, bootcamps, project mentoring, and placement support. Contact us for the next batch schedule.'
+    };
+  }
+  if (/course|training|learn|class/.test(normalized)) {
+    return {
+      reply: 'Our courses include Artificial Intelligence, Machine Learning, Data Science, Data Analytics, Full Stack Development, Generative AI, and Web Design.'
+    };
+  }
+  if (/solution|service|enterprise|software|cloud|automation|website|mobile app/.test(normalized)) {
+    return {
+      reply: 'We deliver web and mobile applications, enterprise software, cloud platforms, applied AI, workflow automation, and analytics solutions.'
+    };
+  }
+  if (/contact|phone|call|email|whatsapp/.test(normalized)) {
+    return {
+      reply: 'Contact SK SMART AI TECHNOLOGIES at +91 93614 83073 or sksmartaitechnologies@gmail.com.'
+    };
+  }
+  return {
+    reply: 'I can help with SK SMART AI TECHNOLOGIES courses, IT solutions, internships and workshops, certificate verification, or contacting our team.',
+    options: ['Courses', 'IT solutions', 'Internships and workshops', 'Verify a certificate', 'Contact']
+  };
+}
+
+async function nvidiaChatReply(message) {
+  const apiKey = process.env.NVIDIA_API_KEY?.trim();
+  if (!apiKey) return null;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: process.env.NVIDIA_MODEL || 'meta/llama-3.1-70b-instruct',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are the SK SMART AI TECHNOLOGIES assistant. Answer clearly about courses, IT solutions, internships, workshops, certificate verification, and contact details. Contact: +91 93614 83073, sksmartaitechnologies@gmail.com. Do not invent prices or schedules.'
+          },
+          { role: 'user', content: message }
+        ],
+        temperature: 0.3,
+        max_tokens: 400,
+        stream: false
+      }),
+      signal: controller.signal
+    });
+    if (!response.ok) throw new Error(`NVIDIA API returned HTTP ${response.status}.`);
+    const result = await response.json();
+    const reply = result.choices?.[0]?.message?.content;
+    if (typeof reply === 'string' && reply.trim()) return reply.trim();
+    console.error('NVIDIA chat response did not contain a reply; using the built-in assistant.');
+  } catch (error) {
+    console.warn('NVIDIA chat request failed; using the built-in assistant:', error);
+  } finally {
+    clearTimeout(timeout);
+  }
+  return null;
+}
+
+app.post('/api/chat', async (req, res) => {
+  const message = req.body?.message;
+  if (!isNonEmptyString(message)) {
+    return res.status(400).json({ error: 'Please enter a message.' });
+  }
+  const reply = await nvidiaChatReply(message.trim());
+  return res.status(200).json(reply ? { reply } : builtInChatReply(message.trim()));
 });
 
 // 3. Add a New Certificate (For You to Issue Certificates)
@@ -184,6 +312,7 @@ app.get('/api/verify/:certId', async (req, res) => {
   }
 });
 
+export { pool };
 export default app;
 
 if (!process.env.VERCEL) {
