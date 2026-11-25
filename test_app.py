@@ -1,3 +1,4 @@
+import json
 import os
 import tempfile
 import unittest
@@ -12,7 +13,10 @@ class ChatbotTests(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.database_path = Path(self.temp_dir.name) / "certificates.sqlite3"
-        self.database_url_patch = patch.dict(os.environ, {"DATABASE_URL": ""})
+        self.database_url_patch = patch.dict(
+            os.environ,
+            {"DATABASE_URL": "", "NVIDIA_API_KEY": ""},
+        )
         self.database_url_patch.start()
         self.database_patch = patch.object(app, "DATABASE_PATH", self.database_path)
         self.database_patch.start()
@@ -29,8 +33,55 @@ class ChatbotTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.get_json()["options"],
-            ["Courses", "Services", "Verify a certificate", "Fees and events"],
+            ["Courses", "IT solutions", "Internships and workshops", "Verify a certificate", "Contact"],
         )
+
+    def test_chat_falls_back_to_builtin_answer_without_nvidia_key(self):
+        response = self.client.post(
+            "/api/chat",
+            json={"message": "Do you have internships and workshops?"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("1-, 3- and 6-month internship tracks", response.get_json()["reply"])
+
+    def test_chat_falls_back_when_nvidia_request_times_out(self):
+        with patch.dict(os.environ, {"NVIDIA_API_KEY": "test-key"}):
+            with patch("app.urllib.request.urlopen", side_effect=TimeoutError("timed out")):
+                response = self.client.post(
+                    "/api/chat",
+                    json={"message": "Tell me about workshops"},
+                )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("workshops", response.get_json()["reply"])
+
+    def test_chat_calls_nvidia_api_when_key_is_configured(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                return False
+
+            def read(self):
+                return json.dumps(
+                    {"choices": [{"message": {"content": "External answer"}}]}
+                ).encode("utf-8")
+
+        with patch.dict(os.environ, {"NVIDIA_API_KEY": "test-key"}):
+            with patch("app.urllib.request.urlopen", return_value=FakeResponse()) as urlopen:
+                response = self.client.post(
+                    "/api/chat",
+                    json={"message": "Tell me about courses"},
+                )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {"reply": "External answer"})
+        request = urlopen.call_args.args[0]
+        self.assertEqual(request.full_url, "https://integrate.api.nvidia.com/v1/chat/completions")
+        self.assertEqual(request.get_header("Authorization"), "Bearer test-key")
+        self.assertEqual(urlopen.call_args.kwargs["timeout"], 8)
 
     def test_every_site_page_is_served(self):
         for page in app.SITE_PAGES:
@@ -110,7 +161,10 @@ class ChatbotTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(
             response.get_json(),
-            {"message": "Thank you. Your enquiry has been received."},
+            {
+                "success": True,
+                "message": "Thank you. Your enquiry has been received.",
+            },
         )
         saved = list_enquiries(self.database_path)
         self.assertEqual(len(saved), 1)

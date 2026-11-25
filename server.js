@@ -8,62 +8,123 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('.'));
 
+const databaseUrl = process.env.DATABASE_URL?.trim();
+if (!databaseUrl) {
+  console.error('DATABASE_URL is missing; form submissions cannot be saved to Neon PostgreSQL.');
+}
+
 const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  connectionString: databaseUrl,
+  ssl: { rejectUnauthorized: false },
+  connectionTimeoutMillis: 10000,
+  statement_timeout: 10000
 });
 
-let careerTableSetup;
+let formTablesSetup;
 
-async function ensureCareerApplicationsTable() {
-  if (!careerTableSetup) {
-    careerTableSetup = pool.query(`
-      CREATE TABLE IF NOT EXISTS career_applications (
-        id BIGSERIAL PRIMARY KEY,
-        full_name TEXT NOT NULL,
-        email TEXT NOT NULL,
-        phone TEXT NOT NULL,
-        role TEXT NOT NULL,
-        experience_level TEXT NOT NULL,
-        portfolio_url TEXT,
-        message TEXT NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `).catch((error) => {
-      careerTableSetup = null;
+async function ensureFormTables() {
+  if (!databaseUrl) {
+    throw new Error('DATABASE_URL is missing; configure Neon PostgreSQL before saving forms.');
+  }
+  if (!formTablesSetup) {
+    formTablesSetup = (async () => {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS registrations (
+          id BIGSERIAL PRIMARY KEY,
+          first_name TEXT NOT NULL,
+          last_name TEXT NOT NULL,
+          email TEXT NOT NULL,
+          phone TEXT NOT NULL,
+          course TEXT NOT NULL,
+          current_status TEXT NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS enquiries (
+          id BIGSERIAL PRIMARY KEY,
+          full_name TEXT NOT NULL,
+          email TEXT NOT NULL,
+          phone TEXT NOT NULL,
+          message TEXT NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS career_applications (
+          id BIGSERIAL PRIMARY KEY,
+          full_name TEXT NOT NULL,
+          email TEXT NOT NULL,
+          phone TEXT NOT NULL,
+          role TEXT NOT NULL,
+          experience_level TEXT NOT NULL,
+          portfolio_url TEXT,
+          message TEXT NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `);
+    })().catch((error) => {
+      formTablesSetup = null;
       throw error;
     });
   }
-  await careerTableSetup;
+  await formTablesSetup;
+}
+
+function isNonEmptyString(value) {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function reportFormDatabaseError(res, operation, error) {
+  const missingDatabaseUrl = !databaseUrl;
+  console.error(`${operation} database operation failed:`, error);
+  return res.status(missingDatabaseUrl ? 503 : 500).json({
+    success: false,
+    error: missingDatabaseUrl
+      ? 'DATABASE_URL is not configured.'
+      : `Unable to save ${operation}. Please try again later.`
+  });
 }
 
 // 1. Save "Register Now" Form
 app.post('/api/register', async (req, res) => {
-  const { first_name, last_name, email, phone, course, current_status } = req.body;
+  const { first_name, last_name, email, phone, course, current_status } = req.body || {};
+  const values = [first_name, last_name, email, phone, course, current_status];
+  if (!values.every(isNonEmptyString)) {
+    return res.status(400).json({ success: false, error: 'Please complete all registration fields.' });
+  }
+
   try {
-    const result = await pool.query(
+    await ensureFormTables();
+    await pool.query(
       `INSERT INTO registrations (first_name, last_name, email, phone, course, current_status)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [first_name, last_name, email, phone, course, current_status]
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+      values.map((value) => value.trim())
     );
-    res.status(201).json({ success: true, data: result.rows[0] });
-  } catch (err) {
-    res.status(400).json({ success: false, error: err.message });
+    return res.status(201).json({ success: true });
+  } catch (error) {
+    return reportFormDatabaseError(res, 'registration', error);
   }
 });
 
 // 2. Save "Send Us a Message" Form
 app.post('/api/enquiry', async (req, res) => {
-  const { full_name, email, phone, message } = req.body;
+  const { full_name, email, phone, message } = req.body || {};
+  const values = [full_name, email, phone, message];
+  if (!values.every(isNonEmptyString)) {
+    return res.status(400).json({ success: false, error: 'Please complete all enquiry fields.' });
+  }
+
   try {
-    const result = await pool.query(
+    await ensureFormTables();
+    await pool.query(
       `INSERT INTO enquiries (full_name, email, phone, message)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [full_name, email, phone, message]
+       VALUES ($1, $2, $3, $4) RETURNING id`,
+      values.map((value) => value.trim())
     );
-    res.status(201).json({ success: true, data: result.rows[0] });
-  } catch (err) {
-    res.status(400).json({ success: false, error: err.message });
+    return res.status(201).json({ success: true });
+  } catch (error) {
+    return reportFormDatabaseError(res, 'enquiry', error);
   }
 });
 
@@ -77,18 +138,17 @@ app.post('/api/careers', async (req, res) => {
   }
 
   try {
-    await ensureCareerApplicationsTable();
-    const result = await pool.query(
+    await ensureFormTables();
+    await pool.query(
       `INSERT INTO career_applications
         (full_name, email, phone, role, experience_level, portfolio_url, message)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, created_at`,
+       RETURNING id`,
       [full_name.trim(), email.trim(), phone.trim(), role.trim(), experience_level.trim(), portfolio_url?.trim() || null, message.trim()]
     );
-    res.status(201).json({ success: true, data: result.rows[0] });
-  } catch (err) {
-    console.error('Career application could not be saved:', err);
-    res.status(500).json({ success: false, error: 'The application could not be saved. Please try again later.' });
+    return res.status(201).json({ success: true });
+  } catch (error) {
+    return reportFormDatabaseError(res, 'career application', error);
   }
 });
 

@@ -74,9 +74,76 @@ window.addEventListener('resize', () => {
   if (!isMobileNavigation()) closeNavigationMenu();
 });
 
+let submissionConfirmationTimer;
+
+function closeSubmissionConfirmation() {
+  const overlay = document.getElementById('submissionConfirmation');
+  if (overlay) overlay.classList.remove('open');
+  window.clearTimeout(submissionConfirmationTimer);
+}
+
+function showSubmissionConfirmation() {
+  let overlay = document.getElementById('submissionConfirmation');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'submissionConfirmation';
+    overlay.className = 'modal-overlay submission-confirmation-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-labelledby', 'submissionConfirmationTitle');
+
+    const dialog = document.createElement('div');
+    dialog.className = 'modal-content submission-confirmation-content';
+    const icon = document.createElement('span');
+    icon.className = 'submission-confirmation-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = '✓';
+    const title = document.createElement('h2');
+    title.id = 'submissionConfirmationTitle';
+    title.textContent = 'Submission received';
+    const message = document.createElement('p');
+    message.textContent = 'Thank you! Our team will contact you shortly.';
+    const closeButton = document.createElement('button');
+    closeButton.className = 'btn btn-primary';
+    closeButton.type = 'button';
+    closeButton.textContent = 'OK';
+    closeButton.addEventListener('click', closeSubmissionConfirmation);
+    dialog.append(icon, title, message, closeButton);
+    overlay.appendChild(dialog);
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) closeSubmissionConfirmation();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && overlay.classList.contains('open')) {
+        closeSubmissionConfirmation();
+      }
+    });
+    document.body.appendChild(overlay);
+  }
+
+  window.clearTimeout(submissionConfirmationTimer);
+  overlay.classList.add('open');
+  overlay.querySelector('button')?.focus();
+  submissionConfirmationTimer = window.setTimeout(closeSubmissionConfirmation, 7000);
+}
+
+async function postFormSubmission(endpoint, payload) {
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.success !== true) {
+    throw new Error(data.error || `The request failed (${response.status}).`);
+  }
+}
+
 // 1. Handle "Register Now" Submission
-document.getElementById('registerForm')?.addEventListener('submit', async (e) => {
-  e.preventDefault();
+document.getElementById('registerForm')?.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const submitButton = form.querySelector('button[type="submit"]');
   const payload = {
     first_name: document.getElementById('firstName').value,
     last_name: document.getElementById('lastName').value,
@@ -86,23 +153,24 @@ document.getElementById('registerForm')?.addEventListener('submit', async (e) =>
     current_status: document.getElementById('selectStatus').value
   };
 
-  const res = await fetch('/api/register', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-  const data = await res.json();
-  if (data.success) {
-    alert('Registration submitted successfully!');
-    e.target.reset();
-  } else {
-    alert('Failed to register: ' + data.error);
+  if (submitButton) submitButton.disabled = true;
+  try {
+    await postFormSubmission('/api/register', payload);
+    form.reset();
+    showSubmissionConfirmation();
+  } catch (error) {
+    alert(`Failed to register: ${error.message}`);
+  } finally {
+    if (submitButton) submitButton.disabled = false;
   }
 });
 
 // 2. Handle "Send Us a Message" Submission
-document.getElementById('enquiryForm')?.addEventListener('submit', async (e) => {
-  e.preventDefault();
+document.getElementById('enquiryForm')?.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const status = document.getElementById('contactFormStatus');
+  const submitButton = form.querySelector('button[type="submit"]');
   const subject = document.getElementById('enqSubject')?.value;
   const message = document.getElementById('enqMessage').value;
   const payload = {
@@ -112,17 +180,18 @@ document.getElementById('enquiryForm')?.addEventListener('submit', async (e) => 
     message: subject ? `Subject: ${subject}\n\n${message}` : message
   };
 
-  const res = await fetch('/api/enquiry', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-  const data = await res.json();
-  if (data.success) {
-    alert('Enquiry sent successfully!');
-    e.target.reset();
-  } else {
-    alert('Failed to send message: ' + data.error);
+  if (status) status.textContent = 'Sending your message...';
+  if (submitButton) submitButton.disabled = true;
+  try {
+    await postFormSubmission('/api/enquiry', payload);
+    form.reset();
+    if (status) status.textContent = 'Thank you! Our team will contact you shortly.';
+    showSubmissionConfirmation();
+  } catch (error) {
+    if (status) status.textContent = error.message || 'Unable to send your message. Please try again.';
+    else alert(`Failed to send message: ${error.message}`);
+  } finally {
+    if (submitButton) submitButton.disabled = false;
   }
 });
 
@@ -402,15 +471,10 @@ document.getElementById('careerForm')?.addEventListener('submit', async (event) 
   if (status) status.textContent = 'Submitting your application...';
   if (submitButton) submitButton.disabled = true;
   try {
-    const response = await fetch('/api/careers', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const data = await response.json();
-    if (!response.ok || !data.success) throw new Error(data.error || 'Unable to submit your application.');
+    await postFormSubmission('/api/careers', payload);
     form.reset();
-    if (status) status.textContent = 'Thank you. Your application has been received.';
+    if (status) status.textContent = 'Thank you! Our team will contact you shortly.';
+    showSubmissionConfirmation();
   } catch (error) {
     if (status) status.textContent = error.message || 'Unable to submit your application. Please try again.';
   } finally {
@@ -536,3 +600,166 @@ window.addEventListener('DOMContentLoaded', () => {
     }, 2400);
   }
 });
+
+let chatRequestInProgress = false;
+
+function ensureChatbotWidget() {
+  if (document.getElementById('chatbotToggleBtn')) return;
+  const widget = document.createElement('div');
+  widget.className = 'chatbot-widget';
+  widget.innerHTML = `
+    <button class="chatbot-toggle-btn" id="chatbotToggleBtn" type="button" aria-label="Open chat" aria-expanded="false">
+      <i class="fas fa-robot"></i>
+    </button>
+    <div class="chatbot-window glass" id="chatbotWindow">
+      <div class="chatbot-header">
+        <div class="bot-info"><i class="fas fa-robot"></i><div><h4>SK AI Assistant</h4><span>SK SMART AI TECHNOLOGIES</span></div></div>
+        <button class="close-bot" id="closeBotBtn" type="button" aria-label="Close chat"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="chatbot-messages" id="chatbotMessages" aria-live="polite"></div>
+      <div class="chatbot-input-area">
+        <input type="text" id="chatUserInput" placeholder="Choose an option or type a question..." onkeypress="handleChatKeyPress(event)" aria-label="Type your message">
+        <button type="button" onclick="sendChatMessage()" aria-label="Send message"><i class="fas fa-paper-plane"></i></button>
+      </div>
+    </div>`;
+  document.body.appendChild(widget);
+}
+
+function appendChatMessage(text, className) {
+  const messages = document.getElementById('chatbotMessages');
+  if (!messages) return;
+  const message = document.createElement('div');
+  message.className = `message ${className}`;
+  message.textContent = text;
+  messages.appendChild(message);
+  messages.scrollTop = messages.scrollHeight;
+}
+
+function renderChatOptions(options) {
+  const messages = document.getElementById('chatbotMessages');
+  if (!messages) return;
+  messages.querySelector('.chatbot-options')?.remove();
+  if (!Array.isArray(options)) return;
+
+  const validOptions = options.filter((option) => typeof option === 'string' && option.trim());
+  if (!validOptions.length) return;
+  const optionList = document.createElement('div');
+  optionList.className = 'chatbot-options';
+  validOptions.forEach((option) => {
+    const button = document.createElement('button');
+    button.className = 'chatbot-option';
+    button.type = 'button';
+    button.textContent = option;
+    button.addEventListener('click', () => sendChatMessage(option));
+    optionList.appendChild(button);
+  });
+  messages.appendChild(optionList);
+  messages.scrollTop = messages.scrollHeight;
+}
+
+function localAssistantFallback(message) {
+  const normalized = message.toLocaleLowerCase();
+  if (/certificate|verify|verification/.test(normalized)) {
+    return 'Use the certificate verification page to enter or scan the certificate ID against the official registry.';
+  }
+  if (/internship|workshop|bootcamp|placement/.test(normalized)) {
+    return 'We offer hands-on 1-, 3- and 6-month internships, live workshops, bootcamps, project mentoring, and placement support. Contact us for the next batch schedule.';
+  }
+  if (/course|training|learn|class/.test(normalized)) {
+    return `Our courses include ${['Artificial Intelligence', 'Machine Learning', 'Data Science', 'Data Analytics', 'Full Stack Development', 'Generative AI', 'Web Design'].join(', ')}. Contact us for current batches.`;
+  }
+  if (/solution|service|enterprise|software|cloud|automation|website|mobile app/.test(normalized)) {
+    return 'We deliver web and mobile applications, enterprise software, cloud platforms, applied AI, workflow automation, and analytics solutions.';
+  }
+  if (/contact|phone|call|email|whatsapp/.test(normalized)) {
+    return 'Contact SK SMART AI TECHNOLOGIES at +91 93614 83073 or sksmartaitechnologies@gmail.com.';
+  }
+  return 'SK SMART AI TECHNOLOGIES can help with courses, IT solutions, internships and workshops, certificate verification, and contacting our team.';
+}
+
+async function sendChatMessage(suggestedMessage) {
+  const input = document.getElementById('chatUserInput');
+  const message = typeof suggestedMessage === 'string'
+    ? suggestedMessage.trim()
+    : input?.value.trim();
+  if (!message || chatRequestInProgress) return;
+
+  const sendButton = document.querySelector('.chatbot-input-area button');
+  chatRequestInProgress = true;
+  if (input) input.value = '';
+  if (sendButton) sendButton.disabled = true;
+  appendChatMessage(message, 'user-message');
+  renderChatOptions([]);
+
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 9500);
+  try {
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message }),
+      signal: controller.signal
+    });
+    const data = await response.json();
+    if (!response.ok || typeof data.reply !== 'string' || !data.reply.trim()) {
+      throw new Error(data.error || 'The assistant returned an invalid response.');
+    }
+    appendChatMessage(data.reply, 'bot-message');
+    if (data.action === 'verify_certificate') {
+      const link = document.createElement('a');
+      link.className = 'chatbot-action-link';
+      link.href = 'verify.html';
+      link.textContent = 'Open certificate verification';
+      document.getElementById('chatbotMessages')?.appendChild(link);
+    }
+    renderChatOptions(data.options);
+  } catch (error) {
+    console.warn('Chat assistant request failed; showing the built-in response:', error);
+    appendChatMessage(localAssistantFallback(message), 'bot-message');
+    renderChatOptions(['Courses', 'IT solutions', 'Internships and workshops', 'Verify a certificate', 'Contact']);
+  } finally {
+    window.clearTimeout(timeout);
+    chatRequestInProgress = false;
+    if (sendButton) sendButton.disabled = false;
+    input?.focus();
+  }
+}
+
+function handleChatKeyPress(event) {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    sendChatMessage();
+  }
+}
+
+window.sendChatMessage = sendChatMessage;
+window.handleChatKeyPress = handleChatKeyPress;
+
+function initializeChatbot() {
+  ensureChatbotWidget();
+  const toggle = document.getElementById('chatbotToggleBtn');
+  const chatWindow = document.getElementById('chatbotWindow');
+  const closeButton = document.getElementById('closeBotBtn');
+  if (!toggle || !chatWindow || toggle.dataset.chatInitialized) return;
+
+  toggle.dataset.chatInitialized = 'true';
+  toggle.addEventListener('click', () => {
+    const isOpen = chatWindow.classList.toggle('open');
+    toggle.setAttribute('aria-expanded', String(isOpen));
+    toggle.setAttribute('aria-label', isOpen ? 'Close chat' : 'Open chat');
+    const messages = document.getElementById('chatbotMessages');
+    if (isOpen && messages && !messages.dataset.greeted) {
+      messages.dataset.greeted = 'true';
+      appendChatMessage('Hello! How can I help with SK SMART AI TECHNOLOGIES today?', 'bot-message');
+      renderChatOptions(['Courses', 'IT solutions', 'Internships and workshops', 'Verify a certificate', 'Contact']);
+    }
+    if (isOpen) document.getElementById('chatUserInput')?.focus();
+  });
+  closeButton?.addEventListener('click', () => {
+    chatWindow.classList.remove('open');
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-label', 'Open chat');
+  });
+}
+
+initializeChatbot();

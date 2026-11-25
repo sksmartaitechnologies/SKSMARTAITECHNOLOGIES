@@ -1336,9 +1336,6 @@ section {
 }
 
 @media (max-width: 768px) {
-    .nav-links {
-        display: none;
-    }
     .hero-content h1 {
         font-size: 2rem;
     }
@@ -2133,12 +2130,15 @@ section {
 
 .verification-controls {
     display: flex;
+    flex-direction: column;
+    align-items: stretch;
     gap: 12px;
 }
 
 .verification-controls input {
-    flex: 1;
+    flex: 0 0 auto;
     min-width: 0;
+    width: 100%;
     padding: 14px 16px;
     border: 1px solid #cbd5e1;
     border-radius: 10px;
@@ -2152,9 +2152,9 @@ section {
 }
 
 .verification-input-options {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
 }
 
 .verification-option {
@@ -2414,7 +2414,7 @@ section {
 }
 
 .nav-menu-toggle {
-    display: none;
+    display: inline-flex;
     align-items: center;
     gap: 8px;
     flex-shrink: 0;
@@ -2451,12 +2451,14 @@ section {
         flex-wrap: nowrap;
         align-items: center;
         order: 1;
-        justify-content: flex-end;
-        gap: 18px;
+        justify-content: flex-start;
+        gap: 14px;
         width: auto;
         min-width: 0;
         margin: 0;
         padding: 0;
+        overflow-x: auto;
+        white-space: nowrap;
     }
 
     .nav-links > li {
@@ -2469,10 +2471,6 @@ section {
         gap: 6px;
         white-space: nowrap;
         font-size: 0.95rem;
-    }
-
-    .nav-menu-toggle {
-        display: none !important;
     }
 
     .dropdown-menu {
@@ -2509,49 +2507,42 @@ section {
     }
 
     .nav-links {
-        display: none !important;
-        position: absolute;
-        order: 1;
-        top: 100%;
-        left: 0;
-        z-index: 999;
-        flex-direction: column;
+        display: flex !important;
+        position: static;
+        order: 3;
+        flex-direction: row;
         flex-wrap: nowrap;
-        align-items: stretch;
+        align-items: center;
         justify-content: flex-start;
-        gap: 0;
-        flex-basis: auto;
+        gap: 14px;
+        flex: 1 1 100%;
+        flex-basis: 100%;
         width: 100%;
-        max-height: calc(100vh - 76px);
+        max-height: none;
         margin: 0;
-        padding: 0;
-        overflow-y: auto;
-        border: 1px solid var(--card-border);
-        border-radius: 0 0 14px 14px;
-        background: #fff;
-        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+        padding: 8px 0;
+        overflow-x: auto;
+        overflow-y: hidden;
+        white-space: nowrap;
     }
 
     .nav-links.open {
-        display: flex !important;
-        padding: 16px 24px;
+        padding: 8px 0;
     }
 
     .nav-links > li {
-        width: 100%;
+        width: auto;
+        flex: 0 0 auto;
     }
 
     .nav-links > li > a {
-        display: flex;
+        display: inline-flex;
         align-items: center;
-        justify-content: space-between;
-        width: 100%;
-        padding: 11px 0;
+        gap: 6px;
+        width: auto;
+        padding: 8px 0;
         font-size: 1rem;
-    }
-
-    .nav-links > li > a::after {
-        display: none;
+        white-space: nowrap;
     }
 
     .nav-links .dropdown-menu,
@@ -3281,4 +3272,47 @@ section {
 .consulting-card ul li > i,
 .verified-fields i {
     flex-shrink: 0;
+}
+
+.submission-confirmation-overlay {
+    z-index: 2200;
+}
+
+.submission-confirmation-content {
+    max-width: 420px;
+    padding: 32px;
+    text-align: center;
+}
+
+.submission-confirmation-icon {
+    display: grid;
+    width: 58px;
+    height: 58px;
+    margin: 0 auto 14px;
+    place-items: center;
+    border-radius: 50%;
+    background: #dcfce7;
+    color: #15803d;
+    font-size: 2rem;
+    font-weight: 700;
+}
+
+.submission-confirmation-content h2 {
+    margin: 0 0 8px;
+}
+
+.submission-confirmation-content p {
+    margin: 0;
+}
+
+.submission-confirmation-content .btn {
+    min-width: 100px;
+    margin-top: 20px;
+}
+
+.chatbot-action-link {
+    align-self: flex-start;
+    color: var(--accent);
+    font-size: 0.85rem;
+    font-weight: 700;
 }

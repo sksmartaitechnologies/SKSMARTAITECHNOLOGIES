@@ -18,7 +18,7 @@ IntegrityError = (sqlite3.IntegrityError, psycopg.IntegrityError)
 def _connect(database_path):
     database_url = os.environ.get("DATABASE_URL", "").strip()
     if database_url:
-        return psycopg.connect(database_url, row_factory=dict_row)
+        return psycopg.connect(database_url, sslmode="require", row_factory=dict_row)
     return sqlite3.connect(database_path)
 
 

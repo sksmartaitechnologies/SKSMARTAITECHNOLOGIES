@@ -1,5 +1,9 @@
+import http.client
+import json
 import os
 import re
+import urllib.error
+import urllib.request
 from pathlib import PurePosixPath
 
 from flask import Flask, abort, jsonify, request, send_from_directory
@@ -69,9 +73,10 @@ SERVICES = (
 )
 QUICK_OPTIONS = (
     "Courses",
-    "Services",
+    "IT solutions",
+    "Internships and workshops",
     "Verify a certificate",
-    "Fees and events",
+    "Contact",
 )
 
 CORS(
@@ -115,8 +120,20 @@ def build_chat_reply(message):
         }
     if re.search(r"\b(certificate|certificates|verify|verification)\b", normalized):
         return {
-            "reply": "Please enter your certificate number and I will check it against our certificate database.",
+            "reply": (
+                "Enter your certificate number or ID on the verification page to check it "
+                "against the official SK SMART AI TECHNOLOGIES registry."
+            ),
             "action": "verify_certificate",
+        }
+    if re.search(r"\b(internship|internships|workshop|workshops|bootcamp|placement)\b", normalized):
+        return {
+            "reply": (
+                "We offer hands-on 1-, 3- and 6-month internship tracks, live workshops "
+                "and bootcamps, project mentoring, and placement support. Contact us "
+                "for the next batch schedule."
+            ),
+            "options": QUICK_OPTIONS,
         }
     if re.search(r"\b(course|courses|class|classes|learn|training program)\b", normalized):
         return {
@@ -126,20 +143,89 @@ def build_chat_reply(message):
         return {
             "reply": "Here is our course list:\n• " + "\n• ".join(COURSES),
         }
-    if re.search(r"\b(service|services|website|mobile app|software development)\b", normalized):
+    if re.search(r"\b(service|services|enterprise|solution|solutions|website|mobile app|software|cloud|automation)\b", normalized):
         return {
-            "reply": "Here are our services:\n• " + "\n• ".join(SERVICES),
+            "reply": (
+                "SK SMART AI TECHNOLOGIES delivers web and mobile applications, "
+                "software and cloud platforms, applied AI, automation, and analytics. "
+                "Here are our core services:\n• " + "\n• ".join(SERVICES)
+            ),
         }
     if re.search(r"\b(contact|phone|call|whatsapp)\b", normalized):
         return {
-            "reply": "Contact SK SMART AI TECHNOLOGIES at 9361483073.",
+            "reply": (
+                "Contact SK SMART AI TECHNOLOGIES at +91 93614 83073 or "
+                "sksmartaitechnologies@gmail.com."
+            ),
             "whatsapp_url": WHATSAPP_CONTACT_URL,
         }
 
     return {
-        "reply": "How can I help? Choose one of the options below.",
+        "reply": (
+            "I can help with SK SMART AI TECHNOLOGIES courses, IT solutions, "
+            "internships and workshops, certificate verification, or contacting our team."
+        ),
         "options": QUICK_OPTIONS,
     }
+
+
+def nvidia_chat_reply(message):
+    api_key = os.environ.get("NVIDIA_API_KEY", "").strip()
+    if not api_key:
+        return None
+
+    payload = {
+        "model": os.environ.get("NVIDIA_MODEL", "meta/llama-3.1-70b-instruct"),
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You are the assistant for SK SMART AI TECHNOLOGIES. Answer questions "
+                    "about its courses, IT solutions, internships, workshops, certificate "
+                    "verification, and contact details. Courses include "
+                    f"{', '.join(COURSES)}. Core services include {', '.join(SERVICES)}. "
+                    "The team offers 1-, 3- and 6-month internships and live workshops. "
+                    "Contact: +91 93614 83073 or sksmartaitechnologies@gmail.com. "
+                    "Be concise and do not invent specific prices or schedules; ask the "
+                    "visitor to contact the team for current availability."
+                ),
+            },
+            {"role": "user", "content": message},
+        ],
+        "temperature": 0.3,
+        "max_tokens": 400,
+        "stream": False,
+    }
+    request = urllib.request.Request(
+        "https://integrate.api.nvidia.com/v1/chat/completions",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=8) as response:
+            result = json.loads(response.read().decode("utf-8"))
+    except (
+        http.client.HTTPException,
+        urllib.error.URLError,
+        TimeoutError,
+        OSError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+    ) as error:
+        app.logger.warning("NVIDIA chat request failed; using built-in response: %s", error)
+        return None
+
+    try:
+        reply = result["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError) as error:
+        app.logger.warning("NVIDIA chat response was invalid; using built-in response: %s", error)
+        return None
+    return reply.strip() if isinstance(reply, str) and reply.strip() else None
 
 
 @app.post("/api/chat")
@@ -152,7 +238,11 @@ def chat():
     if not isinstance(message, str) or not message.strip():
         return jsonify({"error": "Please enter a message."}), 400
 
-    return jsonify(build_chat_reply(message.strip()))
+    message = message.strip()
+    external_reply = nvidia_chat_reply(message)
+    if external_reply:
+        return jsonify({"reply": external_reply})
+    return jsonify(build_chat_reply(message))
 
 
 @app.post("/api/enquiries")
@@ -177,7 +267,12 @@ def create_enquiry():
         app.logger.exception("Enquiry could not be saved.")
         return jsonify({"error": "Your enquiry could not be saved. Please try again."}), 500
 
-    return jsonify({"message": "Thank you. Your enquiry has been received."}), 201
+    return jsonify(
+        {
+            "success": True,
+            "message": "Thank you. Your enquiry has been received.",
+        }
+    ), 201
 
 
 @app.post("/api/certificates/verify")
