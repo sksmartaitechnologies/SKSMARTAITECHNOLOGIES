@@ -1,4 +1,5 @@
 import re
+from pathlib import PurePosixPath
 
 from flask import Flask, abort, jsonify, request, send_from_directory
 from flask_cors import CORS
@@ -12,7 +13,33 @@ from certificate_store import (
 
 
 app = Flask(__name__)
-SITE_PAGES = {"about", "contact", "courses", "index", "services", "training"}
+SITE_PAGES = {
+    "about",
+    "careers",
+    "contact",
+    "courses",
+    "index",
+    "services",
+    "training",
+    "users",
+    "verify",
+}
+STATIC_EXTENSIONS = {
+    ".css",
+    ".gif",
+    ".html",
+    ".ico",
+    ".jpeg",
+    ".jpg",
+    ".js",
+    ".otf",
+    ".png",
+    ".svg",
+    ".ttf",
+    ".webp",
+    ".woff",
+    ".woff2",
+}
 WHATSAPP_CONTACT_URL = "https://wa.me/919361483073"
 COURSES = (
     "Artificial Intelligence",
@@ -60,18 +87,14 @@ def home():
     return send_from_directory(app.root_path, "index.html")
 
 
-@app.get("/<page>.html")
-def site_page(page):
-    if page not in SITE_PAGES:
+@app.get("/<path:filename>")
+def site_file(filename):
+    path = PurePosixPath(filename)
+    if any(part.startswith(".") for part in path.parts):
         abort(404)
-    return send_from_directory(app.root_path, f"{page}.html")
-
-
-@app.get("/<asset>")
-def site_asset(asset):
-    if asset not in {"script.js", "style.css"}:
+    if path.suffix.lower() not in STATIC_EXTENSIONS:
         abort(404)
-    return send_from_directory(app.root_path, asset)
+    return send_from_directory(app.root_path, filename)
 
 
 def build_chat_reply(message):

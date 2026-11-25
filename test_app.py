@@ -32,15 +32,33 @@ class ChatbotTests(unittest.TestCase):
             ["Courses", "Services", "Verify a certificate", "Fees and events"],
         )
 
-    def test_chatbot_is_available_on_every_site_page(self):
+    def test_every_site_page_is_served(self):
         for page in app.SITE_PAGES:
             response = self.client.get(f"/{page}.html")
             try:
                 self.assertEqual(response.status_code, 200)
+            finally:
+                response.close()
+
+    def test_chatbot_is_available_on_existing_chatbot_pages(self):
+        for page in ("about", "contact", "courses", "index", "services", "training"):
+            response = self.client.get(f"/{page}.html")
+            try:
                 self.assertIn(b'id="chatbotToggleBtn"', response.data)
                 self.assertIn(b'id="chatUserInput"', response.data)
             finally:
                 response.close()
+
+    def test_static_assets_are_served_without_exposing_project_files(self):
+        for asset in ("style.css", "script.js"):
+            response = self.client.get(f"/{asset}")
+            try:
+                self.assertEqual(response.status_code, 200)
+            finally:
+                response.close()
+
+        self.assertEqual(self.client.get("/.env").status_code, 404)
+        self.assertEqual(self.client.get("/package.json").status_code, 404)
 
     def test_courses_and_services_return_site_lists(self):
         courses = self.client.post("/api/chat", json={"message": "List courses"})
