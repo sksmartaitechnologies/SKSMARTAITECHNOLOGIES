@@ -312,6 +312,23 @@ app.get('/api/verify/:certId', async (req, res) => {
   }
 });
 
+app.use('/api', (_req, res) => {
+  return res.status(404).json({ success: false, error: 'API endpoint not found.' });
+});
+
+app.use((error, req, res, next) => {
+  if (res.headersSent) return next(error);
+  if (!req.path.startsWith('/api/')) return next(error);
+
+  const status = Number(error.status || error.statusCode);
+  const statusCode = Number.isInteger(status) && status >= 400 && status < 600 ? status : 500;
+  const message = error.type === 'entity.parse.failed'
+    ? 'Invalid JSON request body.'
+    : 'The API request could not be completed.';
+  console.error(`Unhandled API error (${statusCode}) for ${req.method} ${req.originalUrl}:`, error);
+  return res.status(statusCode).json({ success: false, error: message });
+});
+
 export { pool };
 export default app;
 

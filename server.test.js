@@ -76,12 +76,35 @@ test('registration, enquiry, careers, and chat POST endpoints return success ins
       body: JSON.stringify(body)
     });
     assert.equal(response.status, 200, `${path} should return HTTP 200`);
+    assert.match(response.headers.get('content-type') || '', /application\/json/i);
     const result = await response.json();
     assert.equal(result.success ?? Boolean(result.reply), true, `${path} should return success`);
     if (path !== '/api/chat') {
       assert.equal(result.message, 'Thank you! Our team will contact you shortly.');
     }
   }
+});
+
+test('API parser errors and unknown endpoints return JSON instead of HTML', async () => {
+  const invalidBodyResponse = await fetch(`${baseUrl}/api/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{invalid json'
+  });
+  assert.equal(invalidBodyResponse.status, 400);
+  assert.match(invalidBodyResponse.headers.get('content-type') || '', /application\/json/i);
+  assert.deepEqual(await invalidBodyResponse.json(), {
+    success: false,
+    error: 'Invalid JSON request body.'
+  });
+
+  const missingRouteResponse = await fetch(`${baseUrl}/api/not-a-route`);
+  assert.equal(missingRouteResponse.status, 404);
+  assert.match(missingRouteResponse.headers.get('content-type') || '', /application\/json/i);
+  assert.deepEqual(await missingRouteResponse.json(), {
+    success: false,
+    error: 'API endpoint not found.'
+  });
 });
 
 test('chat falls back to the built-in response when NVIDIA is unavailable', async () => {

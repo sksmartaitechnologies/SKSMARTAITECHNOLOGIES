@@ -1,39 +1,15 @@
 const navigationMenu = document.getElementById('navLinks');
-const navigationToggle = document.getElementById('menuToggle');
-const navigationHeader = navigationToggle?.closest('.navbar');
 
 function isMobileNavigation() {
-  return window.matchMedia('(max-width: 991px)').matches;
+  return window.matchMedia('(max-width: 768px)').matches;
 }
 
-function setNavigationToggleState(isOpen) {
-  if (!navigationToggle) return;
-  navigationToggle.setAttribute('aria-expanded', String(isOpen));
-  navigationToggle.setAttribute('aria-label', isOpen ? 'Close navigation menu' : 'Open navigation menu');
-  const icon = navigationToggle.querySelector('.menu-toggle-icon');
-  const label = navigationToggle.querySelector('.menu-toggle-label');
-  if (icon) icon.textContent = isOpen ? '✕' : '☰';
-  if (label) label.textContent = isOpen ? 'Close' : 'Menu';
-}
-
-function closeNavigationMenu() {
-  navigationMenu?.classList.remove('open');
+function closeNavigationDropdowns() {
   navigationMenu?.querySelectorAll('.dropdown.open').forEach((dropdown) => {
     dropdown.classList.remove('open');
     dropdown.querySelector(':scope > a[aria-haspopup="true"]')?.setAttribute('aria-expanded', 'false');
   });
-  setNavigationToggleState(false);
 }
-
-navigationToggle?.addEventListener('click', () => {
-  if (!navigationMenu) return;
-  const isOpen = navigationMenu.classList.toggle('open');
-  if (!isOpen) {
-    closeNavigationMenu();
-    return;
-  }
-  setNavigationToggleState(true);
-});
 
 navigationMenu?.addEventListener('click', (event) => {
   const link = event.target.closest('a');
@@ -54,24 +30,25 @@ navigationMenu?.addEventListener('click', (event) => {
     return;
   }
 
-  if (isMobileNavigation()) closeNavigationMenu();
+  if (isMobileNavigation()) closeNavigationDropdowns();
 });
 
 document.addEventListener('click', (event) => {
-  if (isMobileNavigation() && navigationMenu?.classList.contains('open') && !navigationHeader?.contains(event.target)) {
-    closeNavigationMenu();
+  if (isMobileNavigation() && navigationMenu?.querySelector('.dropdown.open') && !navigationMenu.contains(event.target)) {
+    closeNavigationDropdowns();
   }
 });
 
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && navigationMenu?.classList.contains('open')) {
-    closeNavigationMenu();
-    navigationToggle?.focus();
+  if (event.key === 'Escape' && navigationMenu?.querySelector('.dropdown.open')) {
+    const dropdownToggle = navigationMenu.querySelector('.dropdown.open > a[aria-haspopup="true"]');
+    closeNavigationDropdowns();
+    dropdownToggle?.focus();
   }
 });
 
 window.addEventListener('resize', () => {
-  if (!isMobileNavigation()) closeNavigationMenu();
+  if (!isMobileNavigation()) closeNavigationDropdowns();
 });
 
 let submissionConfirmationTimer;
@@ -133,7 +110,20 @@ async function postFormSubmission(endpoint, payload) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
-  const data = await response.json().catch(() => ({}));
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.toLowerCase().includes('application/json')) {
+    const responseSnippet = (await response.text()).slice(0, 300);
+    console.error(`Expected JSON from ${endpoint}; received HTTP ${response.status}: ${responseSnippet}`);
+    throw new Error(`The server returned an unexpected response (${response.status}).`);
+  }
+
+  let data;
+  try {
+    data = await response.json();
+  } catch (error) {
+    console.error(`Invalid JSON from ${endpoint} (HTTP ${response.status}).`, error);
+    throw new Error(`The server returned invalid JSON (${response.status}).`);
+  }
   if (!response.ok || data.success !== true) {
     throw new Error(data.error || `The request failed (${response.status}).`);
   }
