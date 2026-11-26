@@ -634,3 +634,33 @@ window.addEventListener('DOMContentLoaded', () => {
     }, 2400);
   }
 });
+
+window.addEventListener('DOMContentLoaded', () => {
+  const widget = document.getElementById('chatbotWidget');
+  const toggle = document.getElementById('chatbotToggleBtn');
+  const popup = document.getElementById('botpressChatPopup');
+  const closeButton = document.getElementById('closeChatbotBtn');
+  const iframe = document.getElementById('botpressChatFrame');
+  if (!widget || !toggle || !popup || !iframe) return;
+
+  const setChatOpen = (isOpen) => {
+    popup.hidden = !isOpen;
+    toggle.setAttribute('aria-expanded', String(isOpen));
+    toggle.setAttribute('aria-label', isOpen ? 'Close chat' : 'Open chat');
+    if (isOpen && iframe.dataset.loaded !== 'true') {
+      iframe.src = iframe.dataset.src;
+      iframe.dataset.loaded = 'true';
+    }
+  };
+
+  toggle.addEventListener('click', () => {
+    setChatOpen(popup.hidden);
+  });
+  closeButton?.addEventListener('click', () => setChatOpen(false));
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !popup.hidden) {
+      setChatOpen(false);
+      toggle.focus();
+    }
+  });
+});

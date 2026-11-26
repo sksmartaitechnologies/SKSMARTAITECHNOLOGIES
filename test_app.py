@@ -101,7 +101,7 @@ class ChatbotTests(unittest.TestCase):
             finally:
                 response.close()
 
-    def test_intercom_is_available_without_the_old_chatbot_widget(self):
+    def test_botpress_chat_widget_is_available_without_intercom(self):
         pages = (
             "about",
             "careers",
@@ -115,11 +115,14 @@ class ChatbotTests(unittest.TestCase):
         for page in pages:
             response = self.client.get(f"/{page}.html")
             try:
-                self.assertIn(b'api_base: "https://api-iam.intercom.io"', response.data)
-                self.assertIn(b'app_id: "wkspace_01M8BCHXJZMPS0Z9MBWYQ7TBSG"', response.data)
-                self.assertIn(b'https://widget.intercom.io/widget/wkspace_01M8BCHXJZMPS0Z9MBWYQ7TBSG', response.data)
-                self.assertNotIn(b'chatbotToggleBtn', response.data)
-                self.assertNotIn(b'chatUserInput', response.data)
+                self.assertIn(b'id="chatbotToggleBtn"', response.data)
+                self.assertIn(b'id="botpressChatPopup"', response.data)
+                self.assertIn(
+                    b'data-src="https://cdn.botpress.cloud/webchat/v5.0/shareable.html?configUrl=https://files.bpcontent.cloud/2026/11/26/07/20261126074340-LSJ1DEG4.json"',
+                    response.data,
+                )
+                self.assertNotIn(b'window.intercomSettings', response.data)
+                self.assertNotIn(b'widget.intercom.io', response.data)
             finally:
                 response.close()
 
