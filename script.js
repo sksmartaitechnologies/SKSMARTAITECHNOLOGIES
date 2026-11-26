@@ -1,3 +1,52 @@
+const certificateQueryKeys = new Set(['id', 'cert', 'certificate_number']);
+
+function extractCertIdFromQr(decodedText) {
+  if (typeof decodedText !== 'string' || !decodedText.trim()) return '';
+  const trimmed = decodedText.trim();
+  let url;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    if (!/[/?]/.test(trimmed)) return trimmed;
+    try {
+      url = new URL(trimmed, window.location.origin);
+    } catch {
+      return trimmed;
+    }
+  }
+
+  for (const [key, value] of url.searchParams) {
+    if (certificateQueryKeys.has(key.toLowerCase()) && value.trim()) return value.trim();
+  }
+  const pathSegments = url.pathname.split('/').filter(Boolean);
+  return pathSegments.length ? pathSegments[pathSegments.length - 1] : '';
+}
+
+function getCertificateIdFromLocation() {
+  const findCertificateId = (params) => {
+    for (const [key, value] of params) {
+      if (certificateQueryKeys.has(key.toLowerCase()) && value.trim()) return value.trim();
+    }
+    return '';
+  };
+  const searchId = findCertificateId(new URLSearchParams(window.location.search));
+  if (searchId) return searchId;
+
+  const hash = window.location.hash.slice(1);
+  if (!hash) return '';
+  const queryIndex = hash.indexOf('?');
+  const hashParams = new URLSearchParams(queryIndex >= 0 ? hash.slice(queryIndex + 1) : hash.replace(/^\?/, ''));
+  return findCertificateId(hashParams);
+}
+
+const initialCertificateId = getCertificateIdFromLocation();
+if (initialCertificateId && !/(^|\/)verify\.html$/i.test(window.location.pathname)) {
+  const certificateId = extractCertIdFromQr(initialCertificateId);
+  if (certificateId) {
+    window.location.replace(`/verify.html?id=${encodeURIComponent(certificateId)}`);
+  }
+}
+
 const navigationMenu = document.getElementById('navLinks');
 
 function isMobileNavigation() {
@@ -249,6 +298,7 @@ async function verifyCertificate(certId) {
 
     if (data.verified) {
       const fields = [
+        ['Status', 'Verified'],
         ['Name', data.name],
         ['Certificate Number', data.certificate_number],
         ['Date', data.date]
@@ -294,30 +344,12 @@ document.getElementById('sampleCertBtn')?.addEventListener('click', () => {
   }
 });
 
-function extractCertIdFromQr(decodedText) {
-  if (typeof decodedText !== 'string' || !decodedText.trim()) return '';
-  const trimmed = decodedText.trim();
-  let url;
-  try {
-    url = new URL(trimmed);
-  } catch {
-    if (!/[/?]/.test(trimmed)) return trimmed;
-    try {
-      url = new URL(trimmed, window.location.origin);
-    } catch {
-      return trimmed;
-    }
-  }
-
-  for (const [key, value] of url.searchParams) {
-    if (key.toLowerCase() === 'id' && value.trim()) return value.trim();
-  }
-  const pathSegments = url.pathname.split('/').filter(Boolean);
-  return pathSegments.length ? pathSegments[pathSegments.length - 1] : '';
-}
-
-let html5QrCodeInstance = null;
+let cameraStream = null;
+let cameraScanFrame = null;
+let barcodeDetector = null;
+let cameraScanInProgress = false;
 let cameraScanHandled = false;
+let lastCameraScanAt = 0;
 
 function setQrScannerStatus(message) {
   const statusEl = document.getElementById('qrStatus');
@@ -336,10 +368,14 @@ function setQrCameraControls(isActive) {
 }
 
 async function stopCertificateCamera() {
-  if (html5QrCodeInstance) {
-    await html5QrCodeInstance.stop();
-    html5QrCodeInstance.clear();
-    html5QrCodeInstance = null;
+  if (cameraScanFrame !== null) cancelAnimationFrame(cameraScanFrame);
+  cameraScanFrame = null;
+  cameraStream?.getTracks().forEach((track) => track.stop());
+  cameraStream = null;
+  const video = document.getElementById('qrVideo');
+  if (video) {
+    video.pause();
+    video.srcObject = null;
   }
   setQrCameraControls(false);
 }
@@ -349,83 +385,160 @@ function handleQrCertificate(decodedText, source) {
   const certInput = document.getElementById('certInput');
   if (!certId || !certInput) {
     setQrScannerStatus('The QR code did not contain a certificate ID.');
-    return;
+    return false;
   }
 
   certInput.value = certId;
-  setQrScannerStatus(`${source} detected: ${certId}`);
-  verifyCertificate(certId);
+  setQrScannerStatus(`${source} detected. Verifying certificate...`);
+  void verifyCertificate(certId);
+  return true;
+}
+
+const qrCanvas = document.createElement('canvas');
+const qrCanvasContext = qrCanvas.getContext('2d', { willReadFrequently: true });
+
+function decodeQrWithJsQr(source, sourceWidth, sourceHeight) {
+  if (typeof jsQR !== 'function' || !qrCanvasContext) return null;
+
+  const centerSize = Math.min(sourceWidth, sourceHeight) * 0.75;
+  const centerCrop = {
+    x: (sourceWidth - centerSize) / 2,
+    y: (sourceHeight - centerSize) / 2,
+    width: centerSize,
+    height: centerSize
+  };
+  const fullFrame = { x: 0, y: 0, width: sourceWidth, height: sourceHeight };
+
+  for (const crop of [centerCrop, fullFrame]) {
+    const scale = Math.min(1, 800 / Math.max(crop.width, crop.height));
+    qrCanvas.width = Math.max(1, Math.round(crop.width * scale));
+    qrCanvas.height = Math.max(1, Math.round(crop.height * scale));
+    qrCanvasContext.drawImage(
+      source,
+      crop.x,
+      crop.y,
+      crop.width,
+      crop.height,
+      0,
+      0,
+      qrCanvas.width,
+      qrCanvas.height
+    );
+    const imageData = qrCanvasContext.getImageData(0, 0, qrCanvas.width, qrCanvas.height);
+    const result = jsQR(imageData.data, imageData.width, imageData.height, {
+      inversionAttempts: 'attemptBoth'
+    });
+    if (result?.data) return result.data;
+  }
+  return null;
+}
+
+async function decodeCameraFrame(video) {
+  if (barcodeDetector) {
+    const detections = await barcodeDetector.detect(video);
+    const qrCode = detections.find((detection) => detection.rawValue);
+    if (qrCode) return qrCode.rawValue;
+  } else if (video.videoWidth && video.videoHeight) {
+    return decodeQrWithJsQr(video, video.videoWidth, video.videoHeight);
+  }
+  return null;
+}
+
+async function scanCameraFrame() {
+  if (!cameraStream || cameraScanHandled) return;
+  cameraScanFrame = requestAnimationFrame(scanCameraFrame);
+  const now = performance.now();
+  if (now - lastCameraScanAt < 100) return;
+  lastCameraScanAt = now;
+  if (cameraScanInProgress) return;
+  cameraScanInProgress = true;
+  try {
+    const video = document.getElementById('qrVideo');
+    if (!video || !video.videoWidth || !video.videoHeight) return;
+    const decodedText = await decodeCameraFrame(video);
+    if (!decodedText) return;
+    const certificateId = extractCertIdFromQr(decodedText);
+    if (!certificateId) {
+      setQrScannerStatus('QR detected, but it does not contain a certificate ID. Keep scanning.');
+      return;
+    }
+    cameraScanHandled = true;
+    await stopCertificateCamera();
+    handleQrCertificate(certificateId, 'QR code');
+  } catch (error) {
+    console.warn('Unable to decode a certificate QR camera frame:', error);
+    if (barcodeDetector) barcodeDetector = null;
+    if (typeof jsQR !== 'function') {
+      await stopCertificateCamera();
+      setQrScannerStatus('QR scanning is unavailable in this browser. You can upload a QR image instead.');
+    }
+  } finally {
+    cameraScanInProgress = false;
+  }
 }
 
 document.getElementById('startScanBtn')?.addEventListener('click', async () => {
   const qrReaderEl = document.getElementById('qrReader');
+  const video = document.getElementById('qrVideo');
   const startBtn = document.getElementById('startScanBtn');
-  const imageInput = document.getElementById('qrImageInput');
-
-  if (!qrReaderEl || typeof Html5Qrcode === 'undefined') {
-    setQrScannerStatus('The QR scanner library could not be loaded. Refresh the page or upload a QR image.');
+  if (!qrReaderEl || !video) return;
+  if (cameraStream) {
+    setQrScannerStatus('A camera scan is already in progress.');
     return;
   }
-  if (html5QrCodeInstance) {
-    setQrScannerStatus('A camera scan is already in progress.');
+  if (!navigator.mediaDevices?.getUserMedia) {
+    setQrScannerStatus('Camera access is unavailable in this browser. You can upload a QR image instead.');
     return;
   }
 
   qrReaderEl.hidden = false;
   if (startBtn) startBtn.disabled = true;
-  if (imageInput) imageInput.disabled = true;
-  setQrScannerStatus('Starting camera... Point it at the certificate QR code.');
-
-  let scanner;
+  setQrScannerStatus('Starting camera...');
   cameraScanHandled = false;
+  cameraScanInProgress = false;
+
   try {
-    scanner = new Html5Qrcode('qrReader');
-    html5QrCodeInstance = scanner;
-    await scanner.start(
-      { facingMode: 'environment' },
-      { fps: 10, qrbox: { width: 240, height: 240 } },
-      async (decodedText) => {
-        if (cameraScanHandled) return;
-        cameraScanHandled = true;
-        try {
-          await stopCertificateCamera();
-        } catch (error) {
-          console.error('Unable to stop the certificate QR camera after a scan:', error);
-          setQrScannerStatus('QR detected. The camera could not be stopped automatically; use Stop Camera to close it.');
-        }
-        handleQrCertificate(decodedText, 'QR code');
-      },
-      () => {}
-    );
-    if (html5QrCodeInstance === scanner) {
-      setQrCameraControls(true);
-      setQrScannerStatus('Camera active. Point it at the certificate QR code.');
-    }
-  } catch (error) {
-    console.error('Unable to start the certificate QR camera:', error);
-    if (scanner) {
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      }
+    });
+    video.srcObject = cameraStream;
+    await video.play();
+
+    barcodeDetector = null;
+    if (typeof BarcodeDetector !== 'undefined') {
       try {
-        scanner.clear();
-      } catch (cleanupError) {
-        console.error('Unable to clear the certificate QR camera preview:', cleanupError);
+        barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
+      } catch (error) {
+        console.warn('Native QR detection is unavailable; using jsQR:', error);
       }
     }
-    if (scanner && html5QrCodeInstance === scanner) html5QrCodeInstance = null;
-    setQrCameraControls(false);
+    if (!barcodeDetector && typeof jsQR !== 'function') {
+      throw new Error('The QR scanner library could not be loaded.');
+    }
+
+    setQrCameraControls(true);
+    setQrScannerStatus('Point camera at certificate QR code...');
+    cameraScanFrame = requestAnimationFrame(scanCameraFrame);
+  } catch (error) {
+    console.error('Unable to start the certificate QR camera:', error);
+    await stopCertificateCamera();
     if (startBtn) startBtn.disabled = false;
-    setQrScannerStatus('Camera access denied or unavailable. You can upload a QR image instead.');
+    if (error.name === 'NotAllowedError' || error.name === 'SecurityError') {
+      setQrScannerStatus('Camera permission was denied. Allow camera access in your browser settings, then try again.');
+    } else {
+      setQrScannerStatus(error.message || 'Unable to start the camera. You can upload a QR image instead.');
+    }
   }
   if (startBtn) startBtn.disabled = false;
 });
 
 document.getElementById('stopScanBtn')?.addEventListener('click', async () => {
-  try {
-    await stopCertificateCamera();
-    setQrScannerStatus('');
-  } catch (error) {
-    console.error('Unable to stop the certificate QR camera:', error);
-    setQrScannerStatus('Unable to stop the camera. Please try again or close this page to end the scan.');
-  }
+  await stopCertificateCamera();
+  setQrScannerStatus('');
 });
 
 document.getElementById('qrImageInput')?.addEventListener('change', async (event) => {
@@ -433,35 +546,33 @@ document.getElementById('qrImageInput')?.addEventListener('change', async (event
   const file = fileInput.files?.[0];
   const qrReaderEl = document.getElementById('qrReader');
   if (!file) return;
-  if (typeof Html5Qrcode === 'undefined') {
-    setQrScannerStatus('The QR scanner library could not be loaded. Refresh the page and try again.');
+  if (!qrReaderEl || cameraStream) {
+    setQrScannerStatus('Stop the active camera scan before uploading a QR image.');
     fileInput.value = '';
     return;
   }
-  if (!qrReaderEl || html5QrCodeInstance) {
-    setQrScannerStatus('Stop the active camera scan before uploading a QR image.');
+  if (typeof jsQR !== 'function') {
+    setQrScannerStatus('The QR scanner library could not be loaded. Refresh the page and try again.');
     fileInput.value = '';
     return;
   }
 
   qrReaderEl.hidden = false;
   setQrScannerStatus('Scanning uploaded QR image...');
-  let fileScanner;
+  const imageUrl = URL.createObjectURL(file);
   try {
-    fileScanner = new Html5Qrcode('qrReader');
-    const decodedText = await fileScanner.scanFile(file, true);
-    handleQrCertificate(decodedText, 'QR image');
+    const image = new Image();
+    image.src = imageUrl;
+    await image.decode();
+    const decodedText = decodeQrWithJsQr(image, image.naturalWidth, image.naturalHeight);
+    if (!decodedText || !handleQrCertificate(decodedText, 'QR image')) {
+      setQrScannerStatus('Could not detect a valid certificate QR code in that image. Try a clearer image with the full code visible.');
+    }
   } catch (error) {
     console.warn('Unable to decode a certificate QR code from the selected image:', error);
     setQrScannerStatus('Could not detect a valid QR code in that image. Try a clearer image with the full code visible.');
   } finally {
-    if (fileScanner) {
-      try {
-        fileScanner.clear();
-      } catch (error) {
-        console.error('Unable to clear the uploaded QR image preview:', error);
-      }
-    }
+    URL.revokeObjectURL(imageUrl);
     qrReaderEl.hidden = true;
     fileInput.value = '';
   }
@@ -469,22 +580,12 @@ document.getElementById('qrImageInput')?.addEventListener('change', async (event
 
 // Automatic check when a student scans the QR code on their certificate
 window.addEventListener('DOMContentLoaded', () => {
-  const params = new URLSearchParams(window.location.search);
-  const idParameter = [...params.entries()].find(([key]) => key.toLowerCase() === 'id');
-  const scannedCertId = idParameter?.[1] || params.get('cert');
-  if (scannedCertId) {
-    if (window.location.pathname.toLowerCase().endsWith('/training.html')) {
-      const redirectUrl = new URL(window.location.href);
-      redirectUrl.pathname = redirectUrl.pathname.replace(/training\.html$/i, 'verify.html');
-      window.location.replace(redirectUrl.toString());
-      return;
-    }
-    const certificateId = extractCertIdFromQr(scannedCertId);
-    const input = document.getElementById('certInput');
-    if (input) input.value = certificateId;
-    document.getElementById('verifySection')?.scrollIntoView({ behavior: 'smooth' });
-    verifyCertificate(certificateId);
-  }
+  const certificateId = extractCertIdFromQr(getCertificateIdFromLocation());
+  if (!certificateId || !/(^|\/)verify\.html$/i.test(window.location.pathname)) return;
+  const input = document.getElementById('certInput');
+  if (input) input.value = certificateId;
+  document.getElementById('verifySection')?.scrollIntoView({ behavior: 'smooth' });
+  void verifyCertificate(certificateId);
 });
 
 document.getElementById('careerForm')?.addEventListener('submit', async (event) => {

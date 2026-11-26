@@ -4,6 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Home | SK SMART AI TECHNOLOGIES</title>
+    <script>
+        const certificateParams = new URLSearchParams(window.location.search);
+        const certificateEntry = [...certificateParams.entries()].find(([key, value]) =>
+            ['id', 'cert', 'certificate_number'].includes(key.toLowerCase()) && value.trim()
+        );
+        if (certificateEntry) {
+            let certificateId = certificateEntry[1].trim();
+            try {
+                const qrUrl = new URL(certificateId);
+                const qrId = [...qrUrl.searchParams.entries()].find(([key, value]) =>
+                    ['id', 'cert', 'certificate_number'].includes(key.toLowerCase()) && value.trim()
+                );
+                if (qrId) certificateId = qrId[1].trim();
+            } catch {
+                // Plain certificate IDs are not URLs.
+            }
+            window.location.replace('/verify.html?id=' + encodeURIComponent(certificateId));
+        }
+    </script>
     <link rel="stylesheet" href="style.css">
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
