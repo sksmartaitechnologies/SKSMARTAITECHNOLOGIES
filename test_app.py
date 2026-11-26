@@ -35,7 +35,8 @@ class ChatbotTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotIn("options", response.get_json())
         self.assertIn("courses and internships", response.get_json()["reply"])
-        self.assertIn("/verify.html", response.get_json()["reply"])
+        self.assertIn("[Verify Certificate Page](/verify)", response.get_json()["reply"])
+        self.assertNotIn(".html", response.get_json()["reply"])
 
     def test_chat_falls_back_to_builtin_answer_without_gemini_key(self):
         response = self.client.post(
@@ -44,8 +45,33 @@ class ChatbotTests(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("online and offline", response.get_json()["reply"])
-        self.assertIn("/training.html", response.get_json()["reply"])
+        self.assertIn("online and offline", response.get_json()["reply"].casefold())
+        self.assertIn("[Training](/training)", response.get_json()["reply"])
+        self.assertNotIn(".html", response.get_json()["reply"])
+
+    def test_chat_fallback_explains_fees_and_registration_with_friendly_links(self):
+        fees = self.client.post(
+            "/api/chat", json={"message": "What are the internship fees and stipend?"}
+        ).get_json()["reply"]
+        registration = self.client.post(
+            "/api/chat", json={"message": "How do I register?"}
+        ).get_json()["reply"]
+        verification = self.client.post(
+            "/api/chat", json={"message": "How do I verify a certificate?"}
+        ).get_json()["reply"]
+        services = self.client.post(
+            "/api/chat", json={"message": "Tell me about IT solutions"}
+        ).get_json()["reply"]
+
+        self.assertIn("fees vary by selected program, duration", fees)
+        self.assertIn("stipend opportunities based on performance and project role", fees)
+        self.assertIn("[Contact Page](/contact)", fees)
+        self.assertIn("academic details and preferred domain", registration)
+        self.assertIn("confirm enrollment and schedule details", registration)
+        self.assertIn("[Verify Certificate Page](/verify)", verification)
+        self.assertIn("custom website development", services)
+        for reply in (fees, registration, verification, services):
+            self.assertNotIn(".html", reply)
 
     def test_chat_falls_back_when_gemini_request_times_out(self):
         with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}):
@@ -118,7 +144,10 @@ class ChatbotTests(unittest.TestCase):
         self.assertEqual(payload["contents"][2]["parts"][0]["text"], "Tell me about courses")
         self.assertIn("Data Science", payload["systemInstruction"]["parts"][0]["text"])
         self.assertIn("certificate QR code", payload["systemInstruction"]["parts"][0]["text"])
-        self.assertIn("website building", payload["systemInstruction"]["parts"][0]["text"])
+        self.assertIn("custom website development", payload["systemInstruction"]["parts"][0]["text"])
+        self.assertIn("stipend opportunities", payload["systemInstruction"]["parts"][0]["text"])
+        self.assertIn("academic details and preferred domain", payload["systemInstruction"]["parts"][0]["text"])
+        self.assertNotIn(".html", payload["systemInstruction"]["parts"][0]["text"])
 
     def test_every_site_page_is_served(self):
         for page in app.SITE_PAGES:
@@ -154,7 +183,11 @@ class ChatbotTests(unittest.TestCase):
                 self.assertIn(b'id="chatbotPopup"', response.data)
                 self.assertIn(b'id="chatMessages"', response.data)
                 self.assertIn(b'id="chatForm"', response.data)
-                self.assertIn(b'Welcome! I\xe2\x80\x99m the SK SMART AI Assistant.', response.data)
+                self.assertIn(
+                    b"Hello! Welcome to SK SMART AI TECHNOLOGIES. How can I assist you "
+                    b"today with our courses, internships, certificate verification, or IT solutions?",
+                    response.data,
+                )
                 self.assertNotIn(b'chat-quick-reply', response.data)
                 self.assertNotIn(b'<iframe', response.data)
                 self.assertNotIn(b'botpress.cloud', response.data)
@@ -180,8 +213,10 @@ class ChatbotTests(unittest.TestCase):
 
         self.assertIn("Machine Learning", courses.get_json()["reply"])
         self.assertIn("Cloud Computing", courses.get_json()["reply"])
-        self.assertIn("Website Building", services.get_json()["reply"])
-        self.assertIn("Mobile App Development", services.get_json()["reply"])
+        self.assertIn("custom website development", services.get_json()["reply"])
+        self.assertIn("mobile app development", services.get_json()["reply"])
+        self.assertNotIn(".html", courses.get_json()["reply"])
+        self.assertNotIn(".html", services.get_json()["reply"])
 
     def test_verification_intent_asks_for_certificate_number(self):
         response = self.client.post(
@@ -190,7 +225,7 @@ class ChatbotTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["action"], "verify_certificate")
-        self.assertIn("certificate number", response.get_json()["reply"])
+        self.assertIn("Certificate Number directly in this chat", response.get_json()["reply"])
 
     def test_contact_enquiry_is_saved_to_database(self):
         enquiry = {

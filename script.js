@@ -748,6 +748,15 @@ window.addEventListener('DOMContentLoaded', () => {
   if (!widget || !toggle || !popup || !messages || !chatForm || !chatInput || !sendButton) return;
 
   const history = [];
+  const chatPages = {
+    '/contact': { href: '/contact.html', label: 'Contact Page' },
+    '/courses': { href: '/courses.html', label: 'Courses' },
+    '/training': { href: '/training.html', label: 'Training' },
+    '/verify': { href: '/verify.html', label: 'Verify Certificate Page' },
+    '/services': { href: '/services.html', label: 'Services Page' }
+  };
+  const chatLinkPattern = /\[([^\]]+)\]\((\/(?:contact|courses|training|verify|services)(?:\.html)?)\)|(\/(?:contact|courses|training|verify|services)(?:\.html)?)/gi;
+
   const setChatOpen = (isOpen) => {
     popup.hidden = !isOpen;
     toggle.setAttribute('aria-expanded', String(isOpen));
@@ -755,10 +764,48 @@ window.addEventListener('DOMContentLoaded', () => {
     if (isOpen) chatInput.focus();
   };
 
+  const renderFormattedMessage = (element, content) => {
+    element.replaceChildren();
+    let cursor = 0;
+    for (const match of content.matchAll(chatLinkPattern)) {
+      const sourcePath = match[2] || match[3];
+      const page = chatPages[sourcePath.toLowerCase().replace(/\.html$/, '')];
+      if (!page) continue;
+
+      const matchIndex = match.index ?? 0;
+      if (matchIndex > cursor) {
+        element.appendChild(document.createTextNode(content.slice(cursor, matchIndex)));
+      }
+      const link = document.createElement('a');
+      link.className = 'chat-message-link';
+      link.href = page.href;
+      link.textContent = page.label;
+      element.appendChild(link);
+      cursor = matchIndex + match[0].length;
+    }
+    if (cursor < content.length) {
+      element.appendChild(document.createTextNode(content.slice(cursor)));
+    }
+    messages.scrollTop = messages.scrollHeight;
+  };
+
+  const extractCertificateNumber = (message) => {
+    const candidates = message.match(/\b[A-Z0-9]+(?:-[A-Z0-9]+)*\b/gi) || [];
+    const hasVerificationContext = /\b(certificates?|verify|verification|check|id)\b/i.test(message);
+    return candidates.find((candidate) => {
+      const compact = candidate.replace(/-/g, '');
+      const isStandalone = message.trim().toLowerCase() === candidate.toLowerCase();
+      return compact.length >= 6
+        && /\d/.test(compact)
+        && (/[a-z]/i.test(compact) || hasVerificationContext || isStandalone)
+        && (isStandalone || hasVerificationContext);
+    }) || null;
+  };
+
   const appendMessage = (content, className) => {
     const bubble = document.createElement('p');
     bubble.className = `chat-bubble ${className}`;
-    bubble.textContent = content;
+    renderFormattedMessage(bubble, content);
     messages.appendChild(bubble);
     messages.scrollTop = messages.scrollHeight;
     return bubble;
@@ -775,30 +822,62 @@ window.addEventListener('DOMContentLoaded', () => {
     const typingBubble = appendMessage('Thinking...', 'assistant-bubble chat-typing');
 
     try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, history: history.slice(-12) })
-      });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'The assistant could not process your message.');
-      }
-      if (typeof result.reply !== 'string' || !result.reply.trim()) {
-        throw new Error('The assistant returned an empty response. Please try again.');
+      const certificateNumber = extractCertificateNumber(message);
+      let reply;
+      if (certificateNumber) {
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 8000);
+        let response;
+        try {
+          response = await fetch(
+            `/api/verify?certificate_number=${encodeURIComponent(certificateNumber)}`,
+            { signal: controller.signal }
+          );
+        } finally {
+          window.clearTimeout(timeout);
+        }
+        const result = await response.json();
+        if (!response.ok && response.status !== 404) {
+          throw new Error('Certificate verification is temporarily unavailable.');
+        }
+        reply = result.verified === true
+          ? [
+            'Status: Verified',
+            `Name: ${result.name == null ? 'Not available' : String(result.name)}`,
+            `Certificate Number: ${result.certificate_number == null ? certificateNumber : String(result.certificate_number)}`,
+            `Date: ${result.date == null ? 'Not available' : String(result.date)}`,
+            '',
+            '[Verify Certificate Page](/verify)'
+          ].join('\n')
+          : `I couldn't verify certificate number ${certificateNumber}. Please check the number or use the [Verify Certificate Page](/verify).`;
+      } else {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message, history: history.slice(-12) })
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.error || 'The assistant could not process your message.');
+        }
+        if (typeof result.reply !== 'string' || !result.reply.trim()) {
+          throw new Error('The assistant returned an empty response. Please try again.');
+        }
+        reply = result.reply;
       }
 
       history.push(
         { role: 'user', content: message },
-        { role: 'assistant', content: result.reply }
+        { role: 'assistant', content: reply }
       );
       history.splice(0, Math.max(0, history.length - 12));
-      typingBubble.textContent = result.reply;
+      renderFormattedMessage(typingBubble, reply);
       typingBubble.classList.remove('chat-typing');
     } catch (error) {
-      typingBubble.textContent = error instanceof Error
+      const errorMessage = error instanceof Error
         ? error.message
         : 'Unable to reach the assistant. Please try again.';
+      renderFormattedMessage(typingBubble, errorMessage);
       typingBubble.classList.add('chat-error');
     } finally {
       chatInput.disabled = false;

@@ -3271,6 +3271,18 @@ section {
     color: #1e293b;
 }
 
+.chat-message-link {
+    color: var(--accent);
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.chat-message-link:hover,
+.chat-message-link:focus-visible {
+    color: var(--purple);
+}
+
 .user-bubble {
     align-self: flex-end;
     border-bottom-right-radius: 4px;

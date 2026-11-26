@@ -201,7 +201,9 @@ test('chat falls back to the built-in response when Gemini is unavailable', asyn
   }
 
   assert.equal(response.status, 200);
-  assert.match((await response.json()).reply, /Data Science/i);
+  const reply = (await response.json()).reply;
+  assert.match(reply, /Data Science/i);
+  assert.doesNotMatch(reply, /\.html/i);
 });
 
 test('chat sends history to Gemini and returns its response', async () => {
@@ -246,7 +248,38 @@ test('chat sends history to Gemini and returns its response', async () => {
   assert.equal(payload.contents[2].parts[0].text, 'Tell me about courses');
   assert.match(payload.systemInstruction.parts[0].text, /Data Science/);
   assert.match(payload.systemInstruction.parts[0].text, /certificate QR code/);
-  assert.match(payload.systemInstruction.parts[0].text, /website building/);
+  assert.match(payload.systemInstruction.parts[0].text, /custom website development/);
+  assert.doesNotMatch(payload.systemInstruction.parts[0].text, /\.html/i);
+});
+
+test('chat fallback covers fees, enrollment, certificate checks, and IT solutions', async () => {
+  const replies = {};
+  const messages = {
+    fees: 'What are the internship fees and stipend?',
+    enrollment: 'How do I register?',
+    certificate: 'How do I verify a certificate?',
+    services: 'Tell me about IT solutions'
+  };
+
+  for (const [intent, message] of Object.entries(messages)) {
+    const response = await fetch(`${baseUrl}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message })
+    });
+    assert.equal(response.status, 200);
+    replies[intent] = (await response.json()).reply;
+    assert.doesNotMatch(replies[intent], /\.html/i);
+  }
+
+  assert.match(replies.fees, /fees vary by selected program, duration/i);
+  assert.match(replies.fees, /stipend opportunities based on performance and project role/i);
+  assert.match(replies.fees, /\[Contact Page\]\(\/contact\)/);
+  assert.match(replies.enrollment, /academic details and preferred domain/i);
+  assert.match(replies.enrollment, /confirm enrollment and schedule details/i);
+  assert.match(replies.certificate, /\[Verify Certificate Page\]\(\/verify\)/);
+  assert.match(replies.services, /custom website development/i);
+  assert.match(replies.services, /\[Services Page\]\(\/services\)/);
 });
 
 test('chat falls back when Gemini rate limits requests', async () => {
@@ -273,6 +306,42 @@ test('chat falls back when Gemini rate limits requests', async () => {
 
   assert.equal(response.status, 200);
   assert.match((await response.json()).reply, /Data Science/);
+});
+
+test('certificate lookup returns only approved public fields', async () => {
+  const normalQuery = pool.query;
+  pool.query = async (query, values) => {
+    if (String(query).toLowerCase().includes('from certificates')) {
+      assert.deepEqual(values, ['SKSAIDM202602']);
+      return {
+        rows: [{
+          certificate_number: 'SKSAIDM202602',
+          name: 'Example Student',
+          date: '2026-03-15',
+          college: 'Private College',
+          phone: '1234567890',
+          email: 'private@example.com'
+        }],
+        rowCount: 1
+      };
+    }
+    return normalQuery(query, values);
+  };
+
+  let response;
+  try {
+    response = await fetch(`${baseUrl}/api/verify?certificate_number=SKSAIDM202602`);
+  } finally {
+    pool.query = normalQuery;
+  }
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    verified: true,
+    certificate_number: 'SKSAIDM202602',
+    name: 'Example Student',
+    date: '2026-03-15'
+  });
 });
 
 test('users and certificate endpoints handle GET, POST, and CORS preflight requests', async () => {

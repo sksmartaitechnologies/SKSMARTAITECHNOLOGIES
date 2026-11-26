@@ -59,25 +59,28 @@ COURSES = (
     "Digital Marketing",
     "Java Programming",
 )
-SERVICES = (
-    "Website Building",
-    "Mobile App Development",
-    "Software Development",
-    "Data Analytics",
-    "Digital Marketing",
-)
 CHAT_SYSTEM_PROMPT = (
-    "You are the helpful, concise website assistant for SK SMART AI TECHNOLOGIES. "
-    "Answer using only these known business details and do not invent prices, schedules, "
-    "guarantees, or services. Courses and internships are available in online and offline "
-    "modes and cover Data Science, Artificial Intelligence (AI), Machine Learning, Deep "
-    "Learning, Data Analytics, Full Stack Development, Cloud Computing, Digital Marketing, "
-    "and Java Programming. See /courses.html and /training.html. To verify a certificate, "
-    "enter its Certificate Number or scan the "
-    "certificate QR code on /verify.html. IT solutions include website building, mobile app "
-    "development, software development, data analytics, and digital marketing; see "
-    "/services.html and /contact.html. Keep replies focused and point visitors to the "
-    "relevant page when useful."
+    "You are the professional, welcoming assistant for SK SMART AI TECHNOLOGIES. Give "
+    "clear, helpful answers in a natural tone, using only the facts in this prompt. Never "
+    "display raw file paths or file extensions. Link to pages using Markdown and these "
+    "clean paths: [Courses](/courses), [Training](/training), "
+    "[Verify Certificate Page](/verify), [Services Page](/services), "
+    "[Contact Page](/contact). Courses and internships are available Online and Offline "
+    "and cover Data Science, Artificial Intelligence (AI), Machine Learning, Deep Learning, "
+    "Data Analytics, Full Stack Development, Cloud Computing, Digital Marketing, and Java "
+    "Programming. Course and internship fees vary by selected program, duration, and "
+    "training mode. Eligible internship candidates may receive stipend opportunities based "
+    "on performance and project role. For exact fees and the syllabus, direct visitors to "
+    "submit their details on the Contact Page, or review Courses and Training. For "
+    "registration, explain these steps: explore programs on Courses or Training; submit "
+    "the registration/enquiry form on Contact with academic details and preferred domain; "
+    "then the team will reach out to confirm enrollment and schedule details. For "
+    "certificate verification, ask visitors to enter their Certificate Number directly in "
+    "chat or use the Verify Certificate Page to enter the ID or scan the certificate QR "
+    "code. IT solutions include custom website development, mobile app development, "
+    "software development, data analytics, and digital marketing; direct business "
+    "enquiries to Services or Contact. Do not invent fees, eligibility outcomes, or "
+    "schedules."
 )
 
 CORS(
@@ -111,51 +114,89 @@ def site_file(filename):
 def build_chat_reply(message):
     normalized = message.casefold()
 
+    if re.search(r"\b(fee|fees|cost|pricing|price|stipend|stipends|salary|payment)\b", normalized):
+        return {
+            "reply": (
+                "Course and internship fees vary by selected program, duration, and training "
+                "mode (Online or Offline). Eligible internship candidates may also receive "
+                "stipend opportunities based on performance and project role. For the exact "
+                "fee structure and syllabus, please submit your details on the "
+                "[Contact Page](/contact), or explore [Courses](/courses) and "
+                "[Training](/training)."
+            ),
+        }
+    if re.search(
+        r"\b(apply|application|register|registration|admission|enroll|enrollment|"
+        r"enrol|enrolment|process)\b",
+        normalized,
+    ):
+        return {
+            "reply": (
+                "To get started: 1) Explore programs on [Courses](/courses) or "
+                "[Training](/training). 2) Submit the registration/enquiry form on the "
+                "[Contact Page](/contact) with your academic details and preferred domain. "
+                "3) Our team will reach out to confirm enrollment and schedule details."
+            ),
+        }
     if re.search(r"\b(certificate|certificates|verify|verification)\b", normalized):
         return {
             "reply": (
-                "Enter your certificate number or scan the certificate QR code on "
-                "/verify.html to check it against the official SK SMART AI TECHNOLOGIES registry."
+                "Please enter your Certificate Number directly in this chat, or use the "
+                "[Verify Certificate Page](/verify) to enter your ID or scan your "
+                "certificate QR code."
             ),
             "action": "verify_certificate",
         }
     if re.search(r"\b(internship|internships|bootcamp|placement)\b", normalized):
         return {
             "reply": (
-                "Our courses and internships are available online and offline. Topics include "
-                "Data Science, AI, Machine Learning, Deep Learning, Data Analytics, Full Stack "
-                "Development, Cloud Computing, Digital Marketing, and Java Programming. See "
-                "/courses.html and /training.html for details."
+                "Our Online and Offline courses and internships cover Data Science, "
+                "Artificial Intelligence (AI), Machine Learning, Deep Learning, Data "
+                "Analytics, Full Stack Development, Cloud Computing, Digital Marketing, "
+                "and Java Programming. Explore [Courses](/courses) and "
+                "[Training](/training) to find a program that suits you."
             ),
         }
     if re.search(r"\b(course|courses|class|classes|learn|training program)\b", normalized):
         return {
-            "reply": "Here is our course list:\n• " + "\n• ".join(COURSES),
+            "reply": (
+                "SK SMART AI TECHNOLOGIES offers Online and Offline programs in:\n• "
+                + "\n• ".join(COURSES)
+                + "\nExplore [Courses](/courses) and [Training](/training) for program details."
+            ),
         }
-    if re.search(r"\b(python|java|machine learning|data science|cyber security)\b", normalized):
+    if re.search(
+        r"\b(java|machine learning|deep learning|data science|data analytics|"
+        r"cloud computing|full stack|digital marketing|artificial intelligence)\b",
+        normalized,
+    ):
         return {
-            "reply": "Here is our course list:\n• " + "\n• ".join(COURSES),
+            "reply": (
+                "SK SMART AI TECHNOLOGIES offers Online and Offline programs in:\n• "
+                + "\n• ".join(COURSES)
+                + "\nExplore [Courses](/courses) and [Training](/training) for program details."
+            ),
         }
     if re.search(r"\b(service|services|enterprise|solution|solutions|website|mobile app|software|cloud|automation)\b", normalized):
         return {
             "reply": (
-                "SK SMART AI TECHNOLOGIES offers website building, mobile app development, "
-                "software development, data analytics, and digital marketing. "
-                "Here are our core services:\n• " + "\n• ".join(SERVICES)
+                "SK SMART AI TECHNOLOGIES provides custom website development, mobile app "
+                "development, software development, data analytics, and digital marketing. "
+                "Learn more on the [Services Page](/services) or connect through the "
+                "[Contact Page](/contact)."
             ),
         }
     if re.search(r"\b(contact|phone|call|whatsapp)\b", normalized):
         return {
-            "reply": (
-                "For IT solution enquiries, visit /contact.html."
-            ),
+            "reply": "For assistance, please use the [Contact Page](/contact).",
         }
 
     return {
         "reply": (
-            "I can help with SK SMART AI TECHNOLOGIES courses and internships, "
-            "certificate verification, or IT solutions. Visit /courses.html, "
-            "/training.html, /verify.html, /services.html, or /contact.html for details."
+            "Hello! I can help with our courses and internships, certificate verification, "
+            "or IT solutions. Explore [Courses](/courses), [Training](/training), "
+            "[Verify Certificate Page](/verify), [Services Page](/services), or "
+            "[Contact Page](/contact)."
         ),
     }
 
