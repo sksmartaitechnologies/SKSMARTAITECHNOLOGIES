@@ -5,6 +5,7 @@ import re
 import urllib.error
 import urllib.request
 from pathlib import PurePosixPath
+from urllib.parse import parse_qsl, urlsplit
 
 import psycopg
 from flask import Flask, abort, jsonify, request, send_from_directory
@@ -335,14 +336,27 @@ def create_registration():
     ), 200
 
 
-@app.post("/api/certificates/verify")
-def verify_certificate():
-    data = request.get_json(silent=True)
-    if not isinstance(data, dict):
-        return jsonify({"error": "Send a JSON request with a certificate number."}), 400
+def extract_certificate_number(value):
+    if not isinstance(value, str) or not value.strip():
+        return ""
 
-    certificate_number = data.get("certificate_number")
-    if not isinstance(certificate_number, str) or not certificate_number.strip():
+    value = value.strip()
+    try:
+        parsed = urlsplit(value)
+    except ValueError:
+        return value
+    is_url = bool(parsed.scheme or parsed.netloc or "/" in value or "?" in value)
+    for key, parameter_value in parse_qsl(parsed.query, keep_blank_values=True):
+        if key.casefold() == "id" and parameter_value.strip():
+            return parameter_value.strip()
+    if is_url:
+        return next((part for part in reversed(parsed.path.split("/")) if part), "")
+    return value
+
+
+def verify_certificate_number(certificate_number):
+    certificate_number = extract_certificate_number(certificate_number)
+    if not certificate_number:
         return jsonify({"error": "Please enter your certificate number."}), 400
 
     try:
@@ -351,18 +365,44 @@ def verify_certificate():
         app.logger.exception("Certificate database lookup failed.")
         return jsonify({"error": "Certificate verification is temporarily unavailable."}), 500
 
-    if record is None or not record["is_valid"]:
-        return jsonify({"valid": False})
+    if record is None or record.get("is_valid") is False or record.get("is_valid") == 0:
+        return jsonify({"verified": False})
 
     return jsonify(
         {
-            "valid": True,
-            "certificate_number": record["certificate_number"],
-            "student_name": record["student_name"],
-            "issue_date": record["issue_date"],
-            "course": record["course"],
+            "verified": True,
+            "certificate_number": record.get("certificate_number", record.get("certificate_id")),
+            "name": record["name"],
+            "date": record["date"],
         }
     )
+
+
+@app.post("/api/verify")
+@app.post("/api/certificates/verify")
+def verify_certificate():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "Send a JSON request with a certificate number."}), 400
+    return verify_certificate_number(data.get("certificate_number", data.get("id")))
+
+
+@app.get("/api/verify")
+def verify_certificate_from_query():
+    submitted_value = next(
+        (
+            value
+            for key, value in request.args.items()
+            if key.casefold() in {"id", "certificate_number"}
+        ),
+        "",
+    )
+    return verify_certificate_number(submitted_value)
+
+
+@app.get("/api/verify/<path:certificate_input>")
+def verify_certificate_from_url(certificate_input):
+    return verify_certificate_number(certificate_input)
 
 
 if __name__ == "__main__":

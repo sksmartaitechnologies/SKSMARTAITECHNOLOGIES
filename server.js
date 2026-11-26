@@ -287,6 +287,71 @@ app.post('/api/chat', async (req, res) => {
   return res.status(200).json(reply ? { reply } : builtInChatReply(message.trim()));
 });
 
+function extractCertificateNumber(value) {
+  if (!isNonEmptyString(value)) return '';
+  const input = value.trim();
+  let url;
+  try {
+    url = new URL(input);
+  } catch {
+    if (!/[/?]/.test(input)) return input;
+    try {
+      url = new URL(input, 'https://verification.invalid');
+    } catch {
+      return input;
+    }
+  }
+
+  for (const [key, parameterValue] of url.searchParams) {
+    if (key.toLowerCase() === 'id' && parameterValue.trim()) {
+      return parameterValue.trim();
+    }
+  }
+  const pathSegments = url.pathname.split('/').filter(Boolean);
+  return pathSegments.length ? pathSegments[pathSegments.length - 1] : '';
+}
+
+async function verifyCertificate(res, submittedValue) {
+  const certificateNumber = extractCertificateNumber(submittedValue);
+  if (!certificateNumber) {
+    return res.status(400).json({ error: 'Please enter a certificate number.' });
+  }
+
+  try {
+    let result;
+    try {
+      result = await pool.query(
+        `SELECT certificate_number, name, date
+         FROM certificates
+         WHERE UPPER(TRIM(certificate_number)) = UPPER(TRIM($1))`,
+        [certificateNumber]
+      );
+    } catch (error) {
+      if (error.code !== '42703' || error.column !== 'certificate_number') throw error;
+      result = await pool.query(
+        `SELECT certificate_id, name, date
+         FROM certificates
+         WHERE UPPER(TRIM(certificate_id)) = UPPER(TRIM($1))`,
+        [certificateNumber]
+      );
+    }
+
+    if (!result.rows.length || !(result.rows[0].certificate_number ?? result.rows[0].certificate_id)) {
+      return res.status(404).json({ verified: false });
+    }
+    const row = result.rows[0];
+    return res.status(200).json({
+      verified: true,
+      certificate_number: row.certificate_number ?? row.certificate_id,
+      name: row.name,
+      date: row.date
+    });
+  } catch (error) {
+    console.error('Certificate verification database query failed:', error);
+    return res.status(500).json({ error: 'Certificate verification is temporarily unavailable.' });
+  }
+}
+
 // 3. Add a New Certificate (For You to Issue Certificates)
 app.post('/api/certificates', async (req, res) => {
   const { certificate_id, student_name, course_name, issue_date } = req.body;
@@ -303,20 +368,14 @@ app.post('/api/certificates', async (req, res) => {
 });
 
 // 4. Verify Certificate (Manual Search & QR Code Scan)
-app.get('/api/verify/:certId', async (req, res) => {
-  const certId = req.params.certId.trim().toUpperCase();
-  try {
-    const result = await pool.query(
-      'SELECT certificate_id, student_name, course_name, issue_date FROM certificates WHERE certificate_id = $1',
-      [certId]
-    );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ valid: false, message: 'Fake or Invalid Certificate' });
-    }
-    res.json({ valid: true, certificate: result.rows[0] });
-  } catch (err) {
-    res.status(500).json({ valid: false, error: err.message });
-  }
+app.get('/api/verify', async (req, res) => {
+  const submittedValue = Object.entries(req.query)
+    .find(([key]) => ['id', 'certificate_number'].includes(key.toLowerCase()))?.[1];
+  return verifyCertificate(res, submittedValue);
+});
+
+app.get('/api/verify/:certInput', async (req, res) => {
+  return verifyCertificate(res, req.params.certInput);
 });
 
 app.use('/api', (_req, res) => {

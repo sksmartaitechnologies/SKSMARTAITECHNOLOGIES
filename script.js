@@ -226,13 +226,15 @@ document.getElementById('enquiryForm')?.addEventListener('submit', async (event)
 // 3. Certificate Verification Function (Used by Search & QR Scan)
 async function verifyCertificate(certId) {
   const resultBox = document.getElementById('verifyResult');
-  const certificateId = typeof certId === 'string' ? certId.trim() : '';
+  const certificateId = extractCertIdFromQr(certId);
+  const certInput = document.getElementById('certInput');
   if (!resultBox) return;
   if (!certificateId) {
     resultBox.textContent = 'Enter a certificate number to begin verification.';
     return;
   }
 
+  if (certInput) certInput.value = certificateId;
   resultBox.textContent = 'Checking certificate against the official registry...';
   try {
     const res = await fetch(`/api/verify/${encodeURIComponent(certificateId)}`);
@@ -240,24 +242,16 @@ async function verifyCertificate(certId) {
     if (!res.ok && res.status !== 404) throw new Error(data.error || 'The verification service is unavailable.');
 
     const card = document.createElement('article');
-    card.className = data.valid ? 'verification-result-card valid' : 'verification-result-card invalid';
+    card.className = data.verified ? 'verification-result-card valid' : 'verification-result-card invalid';
     const heading = document.createElement('h3');
-    heading.textContent = data.valid ? 'Authentic Certificate Verified' : 'Certificate Not Verified';
+    heading.textContent = data.verified ? 'Verified' : 'Certificate Not Verified';
     card.appendChild(heading);
 
-    if (data.valid && data.certificate) {
-      const { certificate } = data;
-      const issueDate = certificate.issue_date ? new Date(certificate.issue_date) : null;
-      const formattedDate = !issueDate || Number.isNaN(issueDate.getTime())
-        ? certificate.issue_date || 'Not available'
-        : issueDate.toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' });
+    if (data.verified) {
       const fields = [
-        ['Certificate ID', certificate.certificate_id],
-        ['Student Name', certificate.student_name],
-        ['Course / Internship Track', certificate.course_name],
-        ['Issue Date', formattedDate],
-        ['Issuing Authority', 'SK SMART AI TECHNOLOGIES'],
-        ['Verification Status', 'Verified in the official credential registry']
+        ['Name', data.name],
+        ['Certificate Number', data.certificate_number],
+        ['Date', data.date]
       ];
       const list = document.createElement('dl');
       fields.forEach(([label, value]) => {
@@ -301,15 +295,25 @@ document.getElementById('sampleCertBtn')?.addEventListener('click', () => {
 });
 
 function extractCertIdFromQr(decodedText) {
+  if (typeof decodedText !== 'string' || !decodedText.trim()) return '';
   const trimmed = decodedText.trim();
+  let url;
   try {
-    const url = new URL(trimmed);
-    const certParam = url.searchParams.get('cert');
-    if (certParam) return certParam.trim().toUpperCase();
+    url = new URL(trimmed);
   } catch {
-    // QR contents that are not URLs are certificate IDs.
+    if (!/[/?]/.test(trimmed)) return trimmed;
+    try {
+      url = new URL(trimmed, window.location.origin);
+    } catch {
+      return trimmed;
+    }
   }
-  return trimmed.toUpperCase();
+
+  for (const [key, value] of url.searchParams) {
+    if (key.toLowerCase() === 'id' && value.trim()) return value.trim();
+  }
+  const pathSegments = url.pathname.split('/').filter(Boolean);
+  return pathSegments.length ? pathSegments[pathSegments.length - 1] : '';
 }
 
 let html5QrCodeInstance = null;
@@ -466,7 +470,8 @@ document.getElementById('qrImageInput')?.addEventListener('change', async (event
 // Automatic check when a student scans the QR code on their certificate
 window.addEventListener('DOMContentLoaded', () => {
   const params = new URLSearchParams(window.location.search);
-  const scannedCertId = params.get('cert');
+  const idParameter = [...params.entries()].find(([key]) => key.toLowerCase() === 'id');
+  const scannedCertId = idParameter?.[1] || params.get('cert');
   if (scannedCertId) {
     if (window.location.pathname.toLowerCase().endsWith('/training.html')) {
       const redirectUrl = new URL(window.location.href);
@@ -474,10 +479,11 @@ window.addEventListener('DOMContentLoaded', () => {
       window.location.replace(redirectUrl.toString());
       return;
     }
+    const certificateId = extractCertIdFromQr(scannedCertId);
     const input = document.getElementById('certInput');
-    if (input) input.value = scannedCertId;
+    if (input) input.value = certificateId;
     document.getElementById('verifySection')?.scrollIntoView({ behavior: 'smooth' });
-    verifyCertificate(scannedCertId);
+    verifyCertificate(certificateId);
   }
 });
 

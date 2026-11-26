@@ -1,5 +1,6 @@
 import json
 import os
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -263,29 +264,74 @@ class ChatbotTests(unittest.TestCase):
             },
         )
 
-    def test_valid_certificate_returns_database_details(self):
+    def test_plain_id_and_qr_url_return_only_updated_certificate_fields(self):
         add_certificate(
-            "SK-REAL-001",
+            "SKSAIDM202602",
             "Example Student",
             "2026-03-15",
             "Python Programming",
             self.database_path,
         )
 
+        for submitted_value in (
+            "SKSAIDM202602",
+            "HTTPS://SKSMARTAITECHNOLOGIES.COM/?ID=SKSAIDM202602",
+        ):
+            with self.subTest(submitted_value=submitted_value):
+                response = self.client.post(
+                    "/api/verify",
+                    json={"certificate_number": submitted_value},
+                )
+
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(
+                    response.get_json(),
+                    {
+                        "verified": True,
+                        "certificate_number": "SKSAIDM202602",
+                        "name": "Example Student",
+                        "date": "2026-03-15",
+                    },
+                )
+
+        query_response = self.client.get(
+            "/api/verify?iD=SKSAIDM202602"
+        )
+        self.assertEqual(query_response.status_code, 200)
+        self.assertEqual(query_response.get_json()["verified"], True)
+
+    def test_certificate_id_fallback_is_used_for_older_test_database(self):
+        with sqlite3.connect(self.database_path) as connection:
+            connection.execute(
+                """
+                CREATE TABLE certificates (
+                    certificate_id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    date TEXT NOT NULL
+                )
+                """
+            )
+            connection.execute(
+                "INSERT INTO certificates (certificate_id, name, date) VALUES (?, ?, ?)",
+                ("SKSAIDM202602", "Example Student", "2026-03-15"),
+            )
+
         response = self.client.post(
-            "/api/certificates/verify",
-            json={"certificate_number": "sk-real-001"},
+            "/api/verify",
+            json={
+                "certificate_number":
+                    "https://www.sksmartaitechnologies.com/verify.html?id=SKSAIDM202602"
+            },
         )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.get_json(),
             {
-                "valid": True,
-                "certificate_number": "SK-REAL-001",
-                "student_name": "Example Student",
-                "issue_date": "2026-03-15",
-                "course": "Python Programming",
+                "verified": True,
+                "certificate_number": "SKSAIDM202602",
+                "name": "Example Student",
+                "date": "2026-03-15",
             },
         )
 
@@ -307,8 +353,8 @@ class ChatbotTests(unittest.TestCase):
             json={"certificate_number": "SK-REVOKED-001"},
         )
 
-        self.assertEqual(unknown.get_json(), {"valid": False})
-        self.assertEqual(revoked.get_json(), {"valid": False})
+        self.assertEqual(unknown.get_json(), {"verified": False})
+        self.assertEqual(revoked.get_json(), {"verified": False})
 
     def test_certificate_verification_requires_a_number(self):
         response = self.client.post("/api/certificates/verify", json={})

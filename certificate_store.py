@@ -36,9 +36,8 @@ def initialize_database(database_path=DATABASE_PATH):
                 """
                 CREATE TABLE IF NOT EXISTS certificates (
                     certificate_number TEXT PRIMARY KEY COLLATE NOCASE,
-                    student_name TEXT NOT NULL,
-                    issue_date TEXT NOT NULL,
-                    course TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    date TEXT NOT NULL,
                     is_valid INTEGER NOT NULL DEFAULT 1
                         CHECK (is_valid IN (0, 1))
                 )
@@ -63,10 +62,8 @@ def initialize_database(database_path=DATABASE_PATH):
                 """
                 CREATE TABLE IF NOT EXISTS certificates (
                     certificate_number TEXT PRIMARY KEY,
-                    student_name TEXT NOT NULL,
-                    issue_date TEXT NOT NULL,
-                    course TEXT NOT NULL,
-                    is_valid BOOLEAN NOT NULL DEFAULT TRUE
+                    name TEXT NOT NULL,
+                    date DATE NOT NULL
                 )
                 """,
             )
@@ -83,13 +80,19 @@ def initialize_database(database_path=DATABASE_PATH):
                 )
                 """,
             )
-        _execute(
-            connection,
-            """
-            CREATE UNIQUE INDEX IF NOT EXISTS certificates_number_ci_unique
-            ON certificates (lower(certificate_number))
-            """,
-        )
+        if isinstance(connection, sqlite3.Connection):
+            columns = {
+                row[1]
+                for row in _execute(connection, "PRAGMA table_info(certificates)").fetchall()
+            }
+            if "certificate_number" in columns:
+                _execute(
+                    connection,
+                    """
+                    CREATE UNIQUE INDEX IF NOT EXISTS certificates_number_ci_unique
+                    ON certificates (lower(certificate_number))
+                    """,
+                )
 
 
 def find_certificate(certificate_number, database_path=DATABASE_PATH):
@@ -97,15 +100,48 @@ def find_certificate(certificate_number, database_path=DATABASE_PATH):
     with _connect(database_path) as connection:
         if isinstance(connection, sqlite3.Connection):
             connection.row_factory = sqlite3.Row
-        record = _execute(
-            connection,
-            """
-            SELECT certificate_number, student_name, issue_date, course, is_valid
-            FROM certificates
-            WHERE lower(certificate_number) = lower(?)
-            """,
-            (certificate_number.strip(),),
-        ).fetchone()
+            columns = {
+                row["name"]
+                for row in _execute(connection, "PRAGMA table_info(certificates)").fetchall()
+            }
+        else:
+            columns = None
+
+        validity_column = ", is_valid" if columns is not None and "is_valid" in columns else ""
+        try:
+            record = _execute(
+                connection,
+                f"""
+                SELECT certificate_number, name, date{validity_column}
+                FROM certificates
+                WHERE UPPER(TRIM(certificate_number)) = UPPER(TRIM(?))
+                """,
+                (certificate_number.strip(),),
+            ).fetchone()
+        except sqlite3.OperationalError as error:
+            if "no such column: certificate_number" not in str(error).lower():
+                raise
+            record = _execute(
+                connection,
+                f"""
+                SELECT certificate_id, name, date{validity_column}
+                FROM certificates
+                WHERE UPPER(TRIM(certificate_id)) = UPPER(TRIM(?))
+                """,
+                (certificate_number.strip(),),
+            ).fetchone()
+        except psycopg.errors.UndefinedColumn as error:
+            if error.diag is None or error.diag.column_name != "certificate_number":
+                raise
+            record = _execute(
+                connection,
+                """
+                SELECT certificate_id, name, date
+                FROM certificates
+                WHERE UPPER(TRIM(certificate_id)) = UPPER(TRIM(?))
+                """,
+                (certificate_number.strip(),),
+            ).fetchone()
     return dict(record) if record is not None else None
 
 
@@ -127,14 +163,13 @@ def add_certificate(
             connection,
             """
             INSERT INTO certificates
-                (certificate_number, student_name, issue_date, course)
-            VALUES (?, ?, ?, ?)
+                (certificate_number, name, date)
+            VALUES (?, ?, ?)
             """,
             (
                 certificate_number.strip(),
                 student_name.strip(),
                 issue_date.strip(),
-                course.strip(),
             ),
         )
 
