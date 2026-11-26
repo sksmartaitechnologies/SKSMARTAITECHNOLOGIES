@@ -37,6 +37,16 @@ document.addEventListener('click', (event) => {
   if (isMobileNavigation() && navigationMenu?.querySelector('.dropdown.open') && !navigationMenu.contains(event.target)) {
     closeNavigationDropdowns();
   }
+
+  const menuControl = document.querySelector('.menu-control');
+  const menuToggle = event.target instanceof Element ? event.target.closest('.menu-toggle') : null;
+  if (menuToggle && menuControl?.contains(menuToggle)) {
+    const isOpen = menuControl.classList.toggle('open');
+    menuToggle.setAttribute('aria-expanded', String(isOpen));
+  } else if (menuControl?.classList.contains('open') && !menuControl.contains(event.target)) {
+    menuControl.classList.remove('open');
+    menuControl.querySelector('.menu-toggle')?.setAttribute('aria-expanded', 'false');
+  }
 });
 
 document.addEventListener('keydown', (event) => {
@@ -44,6 +54,16 @@ document.addEventListener('keydown', (event) => {
     const dropdownToggle = navigationMenu.querySelector('.dropdown.open > a[aria-haspopup="true"]');
     closeNavigationDropdowns();
     dropdownToggle?.focus();
+  }
+
+  if (event.key === 'Escape') {
+    const menuControl = document.querySelector('.menu-control.open');
+    if (menuControl) {
+      menuControl.classList.remove('open');
+      const menuToggle = menuControl.querySelector('.menu-toggle');
+      menuToggle?.setAttribute('aria-expanded', 'false');
+      menuToggle?.focus();
+    }
   }
 });
 
@@ -130,28 +150,46 @@ async function postFormSubmission(endpoint, payload) {
 }
 
 // 1. Handle "Register Now" Submission
-document.getElementById('registerForm')?.addEventListener('submit', async (event) => {
+document.addEventListener('submit', async (event) => {
+  const form = event.target;
+  if (!(form instanceof HTMLFormElement) || !form.matches('#registerForm.register-form')) return;
   event.preventDefault();
-  const form = event.currentTarget;
   const submitButton = form.querySelector('button[type="submit"]');
+  let status = form.querySelector('.register-form-status');
+  if (!status) {
+    status = document.createElement('p');
+    status.className = 'register-form-status';
+    status.setAttribute('role', 'status');
+    status.setAttribute('aria-live', 'polite');
+    submitButton?.before(status);
+  }
+  status.textContent = '';
   const payload = {
-    first_name: document.getElementById('firstName').value,
-    last_name: document.getElementById('lastName').value,
-    email: document.getElementById('regEmail').value,
-    phone: document.getElementById('regPhone').value,
-    course: document.getElementById('selectCourse').value,
-    current_status: document.getElementById('selectStatus').value
+    firstName: form.elements.namedItem('firstName')?.value,
+    lastName: form.elements.namedItem('lastName')?.value,
+    email: form.elements.namedItem('email')?.value,
+    phone: form.elements.namedItem('phone')?.value,
+    course: form.elements.namedItem('course')?.value,
+    status: form.elements.namedItem('status')?.value
   };
 
-  if (submitButton) submitButton.disabled = true;
+  const submitLabel = submitButton?.textContent;
+  if (submitButton) {
+    submitButton.disabled = true;
+    submitButton.textContent = 'Submitting...';
+  }
   try {
     await postFormSubmission('/api/register', payload);
     form.reset();
+    closeModal('registerModal');
     showSubmissionConfirmation();
   } catch (error) {
-    alert(`Failed to register: ${error.message}`);
+    status.textContent = error.message || 'Unable to submit your registration. Please try again.';
   } finally {
-    if (submitButton) submitButton.disabled = false;
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.textContent = submitLabel;
+    }
   }
 });
 

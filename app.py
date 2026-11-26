@@ -6,6 +6,7 @@ import urllib.error
 import urllib.request
 from pathlib import PurePosixPath
 
+import psycopg
 from flask import Flask, abort, jsonify, request, send_from_directory
 from flask_cors import CORS
 
@@ -273,6 +274,65 @@ def create_enquiry():
             "message": "Thank you. Your enquiry has been received.",
         }
     ), 201
+
+
+@app.post("/api/register")
+def create_registration():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"success": False, "error": "Send a JSON request with all registration fields."}), 400
+
+    values = (
+        data.get("firstName", data.get("first_name")),
+        data.get("lastName", data.get("last_name")),
+        data.get("email"),
+        data.get("phone"),
+        data.get("course"),
+        data.get("status", data.get("current_status")),
+    )
+    if any(not isinstance(value, str) or not value.strip() for value in values):
+        return jsonify({"success": False, "error": "Please complete all registration fields."}), 400
+
+    database_url = os.environ.get("DATABASE_URL", "").strip()
+    if not database_url:
+        return jsonify({"success": False, "error": "DATABASE_URL is not configured."}), 503
+
+    try:
+        with psycopg.connect(database_url, sslmode="require") as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS registrations (
+                        id BIGSERIAL PRIMARY KEY,
+                        first_name TEXT NOT NULL,
+                        last_name TEXT NOT NULL,
+                        email TEXT NOT NULL,
+                        phone TEXT NOT NULL,
+                        course TEXT NOT NULL,
+                        current_status TEXT NOT NULL,
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    )
+                    """
+                )
+                cursor.execute(
+                    """
+                    INSERT INTO registrations
+                        (first_name, last_name, email, phone, course, current_status)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    """,
+                    tuple(value.strip() for value in values),
+                )
+            conn.commit()
+    except psycopg.Error:
+        app.logger.exception("Registration could not be saved.")
+        return jsonify({"success": False, "error": "Unable to save registration. Please try again later."}), 500
+
+    return jsonify(
+        {
+            "success": True,
+            "message": "Thank you! Our team will contact you shortly.",
+        }
+    ), 200
 
 
 @app.post("/api/certificates/verify")

@@ -3,6 +3,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import MagicMock
 from unittest.mock import patch
 
 import app
@@ -181,6 +182,86 @@ class ChatbotTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(list_enquiries(self.database_path), [])
+
+    def test_registration_requires_database_url(self):
+        response = self.client.post(
+            "/api/register",
+            json={
+                "firstName": "Example",
+                "lastName": "Student",
+                "email": "student@example.com",
+                "phone": "9361483073",
+                "course": "Python Programming",
+                "status": "Studying",
+            },
+        )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(
+            response.get_json(),
+            {"success": False, "error": "DATABASE_URL is not configured."},
+        )
+
+    def test_registration_creates_table_inserts_fields_and_commits(self):
+        connection = MagicMock()
+        cursor = MagicMock()
+        connection.__enter__.return_value = connection
+        connection.cursor.return_value.__enter__.return_value = cursor
+        registration = {
+            "firstName": " Example ",
+            "lastName": " Student ",
+            "email": "student@example.com",
+            "phone": "9361483073",
+            "course": "Python Programming",
+            "status": "Studying",
+        }
+
+        with patch.dict(os.environ, {"DATABASE_URL": "postgresql://test/db"}):
+            with patch("app.psycopg.connect", return_value=connection) as connect:
+                response = self.client.post("/api/register", json=registration)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.get_json(),
+            {
+                "success": True,
+                "message": "Thank you! Our team will contact you shortly.",
+            },
+        )
+        connect.assert_called_once_with("postgresql://test/db", sslmode="require")
+        self.assertIn("CREATE TABLE IF NOT EXISTS registrations", cursor.execute.call_args_list[0].args[0])
+        self.assertIn("INSERT INTO registrations", cursor.execute.call_args_list[1].args[0])
+        self.assertEqual(
+            cursor.execute.call_args_list[1].args[1],
+            ("Example", "Student", "student@example.com", "9361483073", "Python Programming", "Studying"),
+        )
+        connection.commit.assert_called_once_with()
+
+    def test_registration_returns_json_when_database_fails(self):
+        registration = {
+            "first_name": "Example",
+            "last_name": "Student",
+            "email": "student@example.com",
+            "phone": "9361483073",
+            "course": "Python Programming",
+            "current_status": "Studying",
+        }
+
+        with patch.dict(os.environ, {"DATABASE_URL": "postgresql://test/db"}):
+            with patch(
+                "app.psycopg.connect",
+                side_effect=app.psycopg.OperationalError("database unavailable"),
+            ):
+                response = self.client.post("/api/register", json=registration)
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(
+            response.get_json(),
+            {
+                "success": False,
+                "error": "Unable to save registration. Please try again later.",
+            },
+        )
 
     def test_valid_certificate_returns_database_details(self):
         add_certificate(

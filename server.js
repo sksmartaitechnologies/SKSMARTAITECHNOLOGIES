@@ -97,8 +97,15 @@ function reportFormDatabaseError(res, operation, error) {
 
 // 1. Save "Register Now" Form
 app.post('/api/register', async (req, res) => {
-  const { first_name, last_name, email, phone, course, current_status } = req.body || {};
-  const values = [first_name, last_name, email, phone, course, current_status];
+  const body = req.body || {};
+  const values = [
+    body.firstName ?? body.first_name,
+    body.lastName ?? body.last_name,
+    body.email,
+    body.phone,
+    body.course,
+    body.status ?? body.current_status
+  ];
   if (!values.every(isNonEmptyString)) {
     return res.status(400).json({ success: false, error: 'Please complete all registration fields.' });
   }

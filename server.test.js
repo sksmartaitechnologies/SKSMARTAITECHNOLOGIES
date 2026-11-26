@@ -11,8 +11,16 @@ const [{ default: app }, { pool }] = await Promise.all([
 ]);
 
 const originalQuery = pool.query.bind(pool);
-pool.query = async (query) => {
+const registrationSchemaQueries = [];
+const registrationInserts = [];
+pool.query = async (query, values) => {
   const sql = String(query).toLowerCase();
+  if (sql.includes('create table if not exists registrations')) {
+    registrationSchemaQueries.push(sql);
+  }
+  if (sql.includes('insert into registrations')) {
+    registrationInserts.push({ sql, values });
+  }
   if (sql.includes('select name, email from users')) {
     return { rows: [{ name: 'Test User', email: 'test@example.com' }], rowCount: 1 };
   }
@@ -83,6 +91,69 @@ test('registration, enquiry, careers, and chat POST endpoints return success ins
       assert.equal(result.message, 'Thank you! Our team will contact you shortly.');
     }
   }
+});
+
+test('registration accepts camelCase fields and inserts all values after table setup', async () => {
+  const response = await fetch(`${baseUrl}/api/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      firstName: 'Another',
+      lastName: 'Student',
+      email: 'another@example.com',
+      phone: '0987654321',
+      course: 'Data Science',
+      status: 'Working'
+    })
+  });
+
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-type') || '', /application\/json/i);
+  assert.deepEqual(await response.json(), {
+    success: true,
+    message: 'Thank you! Our team will contact you shortly.'
+  });
+  assert.ok(registrationSchemaQueries.some((sql) => sql.includes('create table if not exists registrations')));
+  assert.deepEqual(registrationInserts[registrationInserts.length - 1].values, [
+    'Another',
+    'Student',
+    'another@example.com',
+    '0987654321',
+    'Data Science',
+    'Working'
+  ]);
+});
+
+test('registration returns a clear JSON error when the database insert fails', async () => {
+  const normalQuery = pool.query;
+  pool.query = async () => {
+    throw new Error('simulated database failure');
+  };
+
+  let response;
+  try {
+    response = await fetch(`${baseUrl}/api/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        firstName: 'Test',
+        lastName: 'Student',
+        email: 'test@example.com',
+        phone: '1234567890',
+        course: 'Data Science',
+        status: 'Studying'
+      })
+    });
+  } finally {
+    pool.query = normalQuery;
+  }
+
+  assert.equal(response.status, 500);
+  assert.match(response.headers.get('content-type') || '', /application\/json/i);
+  assert.deepEqual(await response.json(), {
+    success: false,
+    error: 'Unable to save registration. Please try again later.'
+  });
 });
 
 test('API parser errors and unknown endpoints return JSON instead of HTML', async () => {

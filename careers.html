@@ -40,6 +40,19 @@
                 <li><a href="verify.html">Verify Certificate</a></li>
                 <li><a href="contact.html">Contact</a></li>
             </ul>
+            <div class="menu-control">
+                <button type="button" class="menu-toggle" aria-label="Toggle Menu" aria-expanded="false" aria-controls="menuDropdown">&#9776; Menu</button>
+                <div class="menu-dropdown" id="menuDropdown">
+                    <a href="index.html">Home</a>
+                    <a href="about.html">About Us</a>
+                    <a href="services.html">Our Services</a>
+                    <a href="courses.html">Courses</a>
+                    <a href="training.html#internships">Training &amp; Internships</a>
+                    <a href="careers.html">Careers</a>
+                    <a href="verify.html">Verify Certificate</a>
+                    <a href="contact.html">Contact</a>
+                </div>
+            </div>
         </div>
     </nav>
 
@@ -131,10 +144,10 @@
     <div class="modal-overlay" id="registerModal"><div class="modal-content glass register-modal-content">
         <button class="modal-close" type="button" onclick="closeModal('registerModal')" aria-label="Close registration"><i class="fas fa-times"></i></button>
         <h3>Register Now</h3><p>Join SK Smart AI Technologies. Fill in your details below.</p>
-        <form id="registerForm"><div class="form-row"><div class="form-group"><label for="firstName">First Name</label><input id="firstName" required></div><div class="form-group"><label for="lastName">Last Name</label><input id="lastName" required></div></div>
-            <div class="form-row"><div class="form-group"><label for="regEmail">Email</label><input id="regEmail" type="email" required></div><div class="form-group"><label for="regPhone">Phone</label><input id="regPhone" type="tel" required></div></div>
-            <div class="form-group"><label for="selectCourse">Course</label><select id="selectCourse" required><option value="">Select Course</option><option>Artificial Intelligence</option><option>Data Science</option><option>Data Analytics</option><option>Full Stack Development</option><option>Generative AI &amp; Prompt Engineering</option><option>Web Design &amp; Frontend Engineering</option><option>Deep Learning</option></select></div>
-            <div class="form-group"><label for="selectStatus">Current Status</label><select id="selectStatus" required><option value="">Select Status</option><option value="Studying">Studying</option><option value="Job">Job / Working Professional</option></select></div>
+        <form id="registerForm" class="register-form"><div class="form-row"><div class="form-group"><label for="firstName">First Name</label><input id="firstName" name="firstName" required></div><div class="form-group"><label for="lastName">Last Name</label><input id="lastName" name="lastName" required></div></div>
+            <div class="form-row"><div class="form-group"><label for="regEmail">Email</label><input id="regEmail" name="email" type="email" required></div><div class="form-group"><label for="regPhone">Phone</label><input id="regPhone" name="phone" type="tel" required></div></div>
+            <div class="form-group"><label for="selectCourse">Course</label><select id="selectCourse" name="course" required><option value="">Select Course</option><option>Artificial Intelligence</option><option>Data Science</option><option>Data Analytics</option><option>Full Stack Development</option><option>Generative AI &amp; Prompt Engineering</option><option>Web Design &amp; Frontend Engineering</option><option>Deep Learning</option></select></div>
+            <div class="form-group"><label for="selectStatus">Current Status</label><select id="selectStatus" name="status" required><option value="">Select Status</option><option value="Studying">Studying</option><option value="Job">Job / Working Professional</option></select></div>
             <button type="submit" class="btn btn-primary">Submit Registration</button>
         </form>
     </div></div>

@@ -62,6 +62,19 @@
                 <li><a href="contact.html">Contact</a></li>
             </ul>
 
+            <div class="menu-control">
+                <button type="button" class="menu-toggle" aria-label="Toggle Menu" aria-expanded="false" aria-controls="menuDropdown">&#9776; Menu</button>
+                <div class="menu-dropdown" id="menuDropdown">
+                    <a href="index.html">Home</a>
+                    <a href="about.html">About Us</a>
+                    <a href="services.html">Our Services</a>
+                    <a href="courses.html">Courses</a>
+                    <a href="training.html#internships">Training &amp; Internships</a>
+                    <a href="careers.html">Careers</a>
+                    <a href="verify.html">Verify Certificate</a>
+                    <a href="contact.html">Contact</a>
+                </div>
+            </div>
         </div>
     </nav>
     <!-- HERO SECTION -->
@@ -395,17 +408,17 @@
             <button class="modal-close" type="button" onclick="closeModal('registerModal')"><i class="fas fa-times"></i></button>
             <h3>Register Now</h3>
             <p>Join SK Smart AI Technologies. Fill in your details below.</p>
-            <form id="registerForm">
+            <form id="registerForm" class="register-form">
                 <div class="form-row">
-                    <div class="form-group"><input type="text" id="firstName" required placeholder="First Name"></div>
-                    <div class="form-group"><input type="text" id="lastName" required placeholder="Last Name"></div>
+                    <div class="form-group"><input type="text" id="firstName" name="firstName" required placeholder="First Name"></div>
+                    <div class="form-group"><input type="text" id="lastName" name="lastName" required placeholder="Last Name"></div>
                 </div>
                 <div class="form-row">
-                    <div class="form-group"><input type="email" id="regEmail" required placeholder="Email ID"></div>
-                    <div class="form-group"><input type="tel" id="regPhone" required placeholder="Phone Number"></div>
+                    <div class="form-group"><input type="email" id="regEmail" name="email" required placeholder="Email ID"></div>
+                    <div class="form-group"><input type="tel" id="regPhone" name="phone" required placeholder="Phone Number"></div>
                 </div>
                 <div class="form-group">
-                    <select id="selectCourse" required>
+                    <select id="selectCourse" name="course" required>
                         <option value="">Select Course</option>
                         <option>Artificial Intelligence</option>
                         <option>Machine Learning</option>
@@ -425,7 +438,7 @@
                 </div>
                 <div class="form-group">
                     <label>Current Status:</label>
-                    <select id="selectStatus" required>
+                    <select id="selectStatus" name="status" required>
                         <option value="">Select Status</option>
                         <option value="Studying">Studying</option>
                         <option value="Job">Job / Working Professional</option>
