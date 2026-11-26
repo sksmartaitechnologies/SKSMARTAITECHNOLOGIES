@@ -29,34 +29,34 @@ class ChatbotTests(unittest.TestCase):
         self.database_url_patch.stop()
         self.temp_dir.cleanup()
 
-    def test_chat_opens_with_courses_services_verification_and_fees(self):
+    def test_chat_fallback_covers_the_requested_topics_without_options(self):
         response = self.client.post("/api/chat", json={"message": "What can I do?"})
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            response.get_json()["options"],
-            ["Courses & Internships", "₹49 Live Workshops", "Verify Certificate", "IT Solutions & Contact"],
-        )
+        self.assertNotIn("options", response.get_json())
+        self.assertIn("courses and internships", response.get_json()["reply"])
+        self.assertIn("/verify.html", response.get_json()["reply"])
 
     def test_chat_falls_back_to_builtin_answer_without_gemini_key(self):
         response = self.client.post(
             "/api/chat",
-            json={"message": "Do you have internships and workshops?"},
+            json={"message": "Do you have internships?"},
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("1-, 3- and 6-month internship tracks", response.get_json()["reply"])
+        self.assertIn("online and offline", response.get_json()["reply"])
+        self.assertIn("/training.html", response.get_json()["reply"])
 
     def test_chat_falls_back_when_gemini_request_times_out(self):
         with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}):
             with patch("app.urllib.request.urlopen", side_effect=TimeoutError("timed out")):
                 response = self.client.post(
                     "/api/chat",
-                    json={"message": "Tell me about workshops"},
+                    json={"message": "Tell me about online and offline courses"},
                 )
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("workshops", response.get_json()["reply"])
+        self.assertIn("Data Science", response.get_json()["reply"])
 
     def test_chat_falls_back_when_gemini_rate_limits(self):
         error = app.urllib.error.HTTPError(
@@ -70,11 +70,11 @@ class ChatbotTests(unittest.TestCase):
             with patch("app.urllib.request.urlopen", side_effect=error):
                 response = self.client.post(
                     "/api/chat",
-                    json={"message": "Tell me about workshops"},
+                    json={"message": "Tell me about online and offline courses"},
                 )
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("₹49", response.get_json()["reply"])
+        self.assertIn("Data Science", response.get_json()["reply"])
 
     def test_chat_calls_gemini_api_with_conversation_history(self):
         class FakeResponse:
@@ -116,7 +116,9 @@ class ChatbotTests(unittest.TestCase):
         self.assertEqual(payload["contents"][0]["role"], "user")
         self.assertEqual(payload["contents"][1]["role"], "model")
         self.assertEqual(payload["contents"][2]["parts"][0]["text"], "Tell me about courses")
-        self.assertIn("₹49", payload["systemInstruction"]["parts"][0]["text"])
+        self.assertIn("Data Science", payload["systemInstruction"]["parts"][0]["text"])
+        self.assertIn("certificate QR code", payload["systemInstruction"]["parts"][0]["text"])
+        self.assertIn("website building", payload["systemInstruction"]["parts"][0]["text"])
 
     def test_every_site_page_is_served(self):
         for page in app.SITE_PAGES:
@@ -152,8 +154,8 @@ class ChatbotTests(unittest.TestCase):
                 self.assertIn(b'id="chatbotPopup"', response.data)
                 self.assertIn(b'id="chatMessages"', response.data)
                 self.assertIn(b'id="chatForm"', response.data)
-                self.assertIn(b'Courses &amp; Internships', response.data)
-                self.assertIn(b'\xe2\x82\xb949 Live Workshops', response.data)
+                self.assertIn(b'Welcome! I\xe2\x80\x99m the SK SMART AI Assistant.', response.data)
+                self.assertNotIn(b'chat-quick-reply', response.data)
                 self.assertNotIn(b'<iframe', response.data)
                 self.assertNotIn(b'botpress.cloud', response.data)
                 self.assertNotIn(b'window.intercomSettings', response.data)
@@ -177,7 +179,7 @@ class ChatbotTests(unittest.TestCase):
         services = self.client.post("/api/chat", json={"message": "Show services"})
 
         self.assertIn("Machine Learning", courses.get_json()["reply"])
-        self.assertIn("Internet of Things (IoT)", courses.get_json()["reply"])
+        self.assertIn("Cloud Computing", courses.get_json()["reply"])
         self.assertIn("Website Building", services.get_json()["reply"])
         self.assertIn("Mobile App Development", services.get_json()["reply"])
 
@@ -189,17 +191,6 @@ class ChatbotTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["action"], "verify_certificate")
         self.assertIn("certificate number", response.get_json()["reply"])
-
-    def test_fee_questions_return_whatsapp_contact(self):
-        response = self.client.post(
-            "/api/chat", json={"message": "What are the course fees?"}
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("fees", response.get_json()["reply"])
-        self.assertEqual(
-            response.get_json()["whatsapp_url"], "https://wa.me/919361483073"
-        )
 
     def test_contact_enquiry_is_saved_to_database(self):
         enquiry = {

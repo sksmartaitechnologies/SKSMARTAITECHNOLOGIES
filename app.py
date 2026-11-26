@@ -48,37 +48,23 @@ STATIC_EXTENSIONS = {
     ".woff",
     ".woff2",
 }
-WHATSAPP_CONTACT_URL = "https://wa.me/919361483073"
 COURSES = (
-    "Artificial Intelligence",
+    "Data Science",
+    "Artificial Intelligence (AI)",
     "Machine Learning",
     "Deep Learning",
-    "Data Science",
     "Data Analytics",
-    "Business Analytics",
     "Full Stack Development",
     "Cloud Computing",
-    "Cyber Security",
     "Digital Marketing",
     "Java Programming",
-    "Python Programming",
-    "Internet of Things (IoT)",
 )
 SERVICES = (
     "Website Building",
     "Mobile App Development",
-    "Data Analytics",
-    "Data Visualization",
-    "Business Analytics",
     "Software Development",
-    "AI Content",
+    "Data Analytics",
     "Digital Marketing",
-)
-QUICK_OPTIONS = (
-    "Courses & Internships",
-    "₹49 Live Workshops",
-    "Verify Certificate",
-    "IT Solutions & Contact",
 )
 CHAT_SYSTEM_PROMPT = (
     "You are the helpful, concise website assistant for SK SMART AI TECHNOLOGIES. "
@@ -86,15 +72,11 @@ CHAT_SYSTEM_PROMPT = (
     "guarantees, or services. Courses and internships are available in online and offline "
     "modes and cover Data Science, Artificial Intelligence (AI), Machine Learning, Deep "
     "Learning, Data Analytics, Full Stack Development, Cloud Computing, Digital Marketing, "
-    "and Java Programming. Internship tracks include 1-, 3-, and 6-month options with "
-    "hands-on projects, mentoring, and placement support. See /courses.html and "
-    "/training.html. The 2-hour live workshops "
-    "have a ₹49 registration fee and include a live session plus a verified e-certificate; "
-    "see /training.html. To verify a certificate, enter its Certificate Number or scan the "
+    "and Java Programming. See /courses.html and /training.html. To verify a certificate, "
+    "enter its Certificate Number or scan the "
     "certificate QR code on /verify.html. IT solutions include website building, mobile app "
     "development, software development, data analytics, and digital marketing; see "
-    "/services.html and /contact.html. Contact the team at +91 93614 83073 or "
-    "sksmartaitechnologies@gmail.com. Keep replies focused and point visitors to the "
+    "/services.html and /contact.html. Keep replies focused and point visitors to the "
     "relevant page when useful."
 )
 
@@ -129,24 +111,6 @@ def site_file(filename):
 def build_chat_reply(message):
     normalized = message.casefold()
 
-    if re.search(r"(₹\s*49|2[- ]hour|live workshop|workshops?)", normalized):
-        return {
-            "reply": (
-                "Our 2-hour live workshops have a ₹49 registration fee and include a live "
-                "session plus a verified e-certificate. See /training.html for details. "
-                "We also offer hands-on 1-, 3- and 6-month internship tracks with project "
-                "mentoring and placement support."
-            ),
-        }
-    if re.search(r"\b(fee|fees|price|pricing|cost|event|events|schedule)\b", normalized):
-        return {
-            "reply": (
-                "The 2-hour live workshops cost ₹49 and include a live session plus a "
-                "verified e-certificate. For course fees or upcoming dates, contact "
-                "SK SMART AI TECHNOLOGIES at +91 93614 83073."
-            ),
-            "whatsapp_url": WHATSAPP_CONTACT_URL,
-        }
     if re.search(r"\b(certificate|certificates|verify|verification)\b", normalized):
         return {
             "reply": (
@@ -163,7 +127,6 @@ def build_chat_reply(message):
                 "Development, Cloud Computing, Digital Marketing, and Java Programming. See "
                 "/courses.html and /training.html for details."
             ),
-            "options": QUICK_OPTIONS,
         }
     if re.search(r"\b(course|courses|class|classes|learn|training program)\b", normalized):
         return {
@@ -179,25 +142,21 @@ def build_chat_reply(message):
                 "SK SMART AI TECHNOLOGIES offers website building, mobile app development, "
                 "software development, data analytics, and digital marketing. "
                 "Here are our core services:\n• " + "\n• ".join(SERVICES)
-                + "\nFor enquiries, call +91 93614 83073 or email "
-                "sksmartaitechnologies@gmail.com."
             ),
         }
     if re.search(r"\b(contact|phone|call|whatsapp)\b", normalized):
         return {
             "reply": (
-                "Contact SK SMART AI TECHNOLOGIES at +91 93614 83073 or "
-                "sksmartaitechnologies@gmail.com."
+                "For IT solution enquiries, visit /contact.html."
             ),
-            "whatsapp_url": WHATSAPP_CONTACT_URL,
         }
 
     return {
         "reply": (
-            "I can help with SK SMART AI TECHNOLOGIES courses, IT solutions, "
-            "internships and workshops, certificate verification, or contacting our team."
+            "I can help with SK SMART AI TECHNOLOGIES courses and internships, "
+            "certificate verification, or IT solutions. Visit /courses.html, "
+            "/training.html, /verify.html, /services.html, or /contact.html for details."
         ),
-        "options": QUICK_OPTIONS,
     }
 
 

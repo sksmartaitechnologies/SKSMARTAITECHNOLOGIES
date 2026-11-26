@@ -3278,28 +3278,6 @@ section {
     color: #fff;
 }
 
-.chat-quick-replies {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 7px;
-}
-
-.chat-quick-reply {
-    padding: 7px 10px;
-    border: 1px solid var(--accent);
-    border-radius: 16px;
-    background: #fff;
-    color: var(--accent);
-    cursor: pointer;
-    font: inherit;
-    font-size: 0.78rem;
-}
-
-.chat-quick-reply:hover,
-.chat-quick-reply:focus-visible {
-    background: #eff6ff;
-}
-
 .chat-composer {
     display: flex;
     flex-shrink: 0;
@@ -3360,11 +3338,6 @@ section {
     border-color: #fecaca;
     background: #fef2f2;
     color: #991b1b;
-}
-
-.chat-quick-reply:disabled {
-    cursor: wait;
-    opacity: 0.65;
 }
 
 .chat-popup,

@@ -768,14 +768,10 @@ window.addEventListener('DOMContentLoaded', () => {
     const message = value.trim();
     if (!message || sendButton.disabled) return;
 
-    messages.querySelector('.chat-quick-replies')?.remove();
     appendMessage(message, 'user-bubble');
     chatInput.value = '';
     chatInput.disabled = true;
     sendButton.disabled = true;
-    popup.querySelectorAll('.chat-quick-reply').forEach((button) => {
-      button.disabled = true;
-    });
     const typingBubble = appendMessage('Thinking...', 'assistant-bubble chat-typing');
 
     try {
@@ -818,11 +814,6 @@ window.addEventListener('DOMContentLoaded', () => {
   chatForm.addEventListener('submit', (event) => {
     event.preventDefault();
     void sendMessage(chatInput.value);
-  });
-  popup.querySelectorAll('.chat-quick-reply').forEach((button) => {
-    button.addEventListener('click', () => {
-      void sendMessage(button.textContent || '');
-    });
   });
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && !popup.hidden) {

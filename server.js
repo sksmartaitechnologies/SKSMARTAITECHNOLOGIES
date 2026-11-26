@@ -205,47 +205,35 @@ app.post('/api/users', async (req, res) => {
 
 function builtInChatReply(message) {
   const normalized = message.toLowerCase();
-  if (/₹\s*49|2[- ]hour|live workshop|workshops?/.test(normalized)) {
-    return {
-      reply: 'Our 2-hour live workshops have a ₹49 registration fee and include a live session plus a verified e-certificate. See /training.html for details. We also offer hands-on 1-, 3- and 6-month internship tracks with project mentoring and placement support.'
-    };
-  }
-  if (/fee|fees|price|pricing|cost|schedule|event/.test(normalized)) {
-    return {
-      reply: 'The 2-hour live workshops cost ₹49 and include a live session plus a verified e-certificate. For course fees or upcoming dates, contact SK SMART AI TECHNOLOGIES at +91 93614 83073.',
-      whatsapp_url: 'https://wa.me/919361483073'
-    };
-  }
   if (/certificate|verify|verification/.test(normalized)) {
     return { reply: 'Enter your certificate number or scan the certificate QR code on /verify.html to check it against the official SK SMART AI TECHNOLOGIES registry.', action: 'verify_certificate' };
   }
   if (/internship|bootcamp|placement/.test(normalized)) {
     return {
-      reply: 'Our courses and internships are available online and offline. Topics include Data Science, AI, Machine Learning, Deep Learning, Data Analytics, Full Stack Development, Cloud Computing, Digital Marketing, and Java Programming. See /courses.html and /training.html for details.'
+      reply: 'Our courses and internships are available online and offline. Topics include Data Science, Artificial Intelligence (AI), Machine Learning, Deep Learning, Data Analytics, Full Stack Development, Cloud Computing, Digital Marketing, and Java Programming. See /courses.html and /training.html for details.'
     };
   }
   if (/course|training|learn|class/.test(normalized)) {
     return {
-      reply: 'Our online and offline courses cover Data Science, Artificial Intelligence, Machine Learning, Deep Learning, Data Analytics, Full Stack Development, Cloud Computing, Digital Marketing, and Java Programming. See /courses.html and /training.html.'
+      reply: 'Our online and offline courses cover Data Science, Artificial Intelligence (AI), Machine Learning, Deep Learning, Data Analytics, Full Stack Development, Cloud Computing, Digital Marketing, and Java Programming. See /courses.html and /training.html.'
     };
   }
   if (/solution|service|enterprise|software|cloud|automation|website|mobile app/.test(normalized)) {
     return {
-      reply: 'Our IT solutions include Website Building, Mobile App Development, Software Development, Data Analytics, and Digital Marketing. See /services.html or /contact.html. Call +91 93614 83073 or email sksmartaitechnologies@gmail.com for enquiries.'
+      reply: 'Our IT solutions include website building, mobile app development, software development, data analytics, and digital marketing. See /services.html or /contact.html.'
     };
   }
   if (/contact|phone|call|email|whatsapp/.test(normalized)) {
     return {
-      reply: 'Contact SK SMART AI TECHNOLOGIES at +91 93614 83073 or sksmartaitechnologies@gmail.com.'
+      reply: 'For IT solution enquiries, visit /contact.html.'
     };
   }
   return {
-    reply: 'I can help with SK SMART AI TECHNOLOGIES courses, IT solutions, internships and workshops, certificate verification, or contacting our team.',
-    options: ['Courses & Internships', '₹49 Live Workshops', 'Verify Certificate', 'IT Solutions & Contact']
+    reply: 'I can help with SK SMART AI TECHNOLOGIES courses and internships, certificate verification, or IT solutions. Visit /courses.html, /training.html, /verify.html, /services.html, or /contact.html for details.'
   };
 }
 
-const CHAT_SYSTEM_PROMPT = 'You are the helpful, concise website assistant for SK SMART AI TECHNOLOGIES. Answer using only these known business details and do not invent prices, schedules, guarantees, or services. Courses and internships are available in online and offline modes and cover Data Science, Artificial Intelligence (AI), Machine Learning, Deep Learning, Data Analytics, Full Stack Development, Cloud Computing, Digital Marketing, and Java Programming. Internship tracks include 1-, 3-, and 6-month options with hands-on projects, mentoring, and placement support. See /courses.html and /training.html. The 2-hour live workshops have a ₹49 registration fee and include a live session plus a verified e-certificate; see /training.html. To verify a certificate, enter its Certificate Number or scan the certificate QR code on /verify.html. IT solutions include website building, mobile app development, software development, data analytics, and digital marketing; see /services.html and /contact.html. Contact the team at +91 93614 83073 or sksmartaitechnologies@gmail.com. Keep replies focused and point visitors to the relevant page when useful.';
+const CHAT_SYSTEM_PROMPT = 'You are the helpful, concise website assistant for SK SMART AI TECHNOLOGIES. Answer using only these known business details and do not invent prices, schedules, guarantees, or services. Courses and internships are available in online and offline modes and cover Data Science, Artificial Intelligence (AI), Machine Learning, Deep Learning, Data Analytics, Full Stack Development, Cloud Computing, Digital Marketing, and Java Programming. See /courses.html and /training.html. To verify a certificate, enter its Certificate Number or scan the certificate QR code on /verify.html. IT solutions include website building, mobile app development, software development, data analytics, and digital marketing; see /services.html and /contact.html. Keep replies focused and point visitors to the relevant page when useful.';
 
 function sanitizedChatHistory(history) {
   if (!Array.isArray(history)) return [];

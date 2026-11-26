@@ -74,7 +74,7 @@ test('registration, enquiry, careers, and chat POST endpoints return success ins
       portfolio_url: '',
       message: 'Application test.'
     }],
-    ['/api/chat', { message: 'Tell me about workshops.' }]
+    ['/api/chat', { message: 'Tell me about internship options.' }]
   ];
 
   for (const [path, body] of submissions) {
@@ -193,7 +193,7 @@ test('chat falls back to the built-in response when Gemini is unavailable', asyn
     response = await originalFetch(`${baseUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: 'Tell me about workshops.' })
+      body: JSON.stringify({ message: 'Tell me about online and offline courses.' })
     });
   } finally {
     globalThis.fetch = originalFetch;
@@ -201,7 +201,7 @@ test('chat falls back to the built-in response when Gemini is unavailable', asyn
   }
 
   assert.equal(response.status, 200);
-  assert.match((await response.json()).reply, /2-hour live workshops/i);
+  assert.match((await response.json()).reply, /Data Science/i);
 });
 
 test('chat sends history to Gemini and returns its response', async () => {
@@ -244,7 +244,9 @@ test('chat sends history to Gemini and returns its response', async () => {
   assert.equal(payload.contents[0].role, 'user');
   assert.equal(payload.contents[1].role, 'model');
   assert.equal(payload.contents[2].parts[0].text, 'Tell me about courses');
-  assert.match(payload.systemInstruction.parts[0].text, /₹49/);
+  assert.match(payload.systemInstruction.parts[0].text, /Data Science/);
+  assert.match(payload.systemInstruction.parts[0].text, /certificate QR code/);
+  assert.match(payload.systemInstruction.parts[0].text, /website building/);
 });
 
 test('chat falls back when Gemini rate limits requests', async () => {
@@ -262,7 +264,7 @@ test('chat falls back when Gemini rate limits requests', async () => {
     response = await originalFetch(`${baseUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: 'Tell me about workshops.' })
+      body: JSON.stringify({ message: 'Tell me about online and offline courses.' })
     });
   } finally {
     globalThis.fetch = originalFetch;
@@ -270,7 +272,7 @@ test('chat falls back when Gemini rate limits requests', async () => {
   }
 
   assert.equal(response.status, 200);
-  assert.match((await response.json()).reply, /₹49/);
+  assert.match((await response.json()).reply, /Data Science/);
 });
 
 test('users and certificate endpoints handle GET, POST, and CORS preflight requests', async () => {
