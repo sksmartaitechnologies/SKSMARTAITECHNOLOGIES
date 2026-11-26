@@ -17,7 +17,7 @@ class ChatbotTests(unittest.TestCase):
         self.database_path = Path(self.temp_dir.name) / "certificates.sqlite3"
         self.database_url_patch = patch.dict(
             os.environ,
-            {"DATABASE_URL": "", "NVIDIA_API_KEY": ""},
+            {"DATABASE_URL": "", "GEMINI_API_KEY": ""},
         )
         self.database_url_patch.start()
         self.database_patch = patch.object(app, "DATABASE_PATH", self.database_path)
@@ -35,10 +35,10 @@ class ChatbotTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.get_json()["options"],
-            ["Courses", "IT solutions", "Internships and workshops", "Verify a certificate", "Contact"],
+            ["Courses & Internships", "₹49 Live Workshops", "Verify Certificate", "IT Solutions & Contact"],
         )
 
-    def test_chat_falls_back_to_builtin_answer_without_nvidia_key(self):
+    def test_chat_falls_back_to_builtin_answer_without_gemini_key(self):
         response = self.client.post(
             "/api/chat",
             json={"message": "Do you have internships and workshops?"},
@@ -47,8 +47,8 @@ class ChatbotTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("1-, 3- and 6-month internship tracks", response.get_json()["reply"])
 
-    def test_chat_falls_back_when_nvidia_request_times_out(self):
-        with patch.dict(os.environ, {"NVIDIA_API_KEY": "test-key"}):
+    def test_chat_falls_back_when_gemini_request_times_out(self):
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}):
             with patch("app.urllib.request.urlopen", side_effect=TimeoutError("timed out")):
                 response = self.client.post(
                     "/api/chat",
@@ -58,7 +58,25 @@ class ChatbotTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("workshops", response.get_json()["reply"])
 
-    def test_chat_calls_nvidia_api_when_key_is_configured(self):
+    def test_chat_falls_back_when_gemini_rate_limits(self):
+        error = app.urllib.error.HTTPError(
+            "https://generativelanguage.googleapis.com/",
+            429,
+            "Too Many Requests",
+            {},
+            None,
+        )
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}):
+            with patch("app.urllib.request.urlopen", side_effect=error):
+                response = self.client.post(
+                    "/api/chat",
+                    json={"message": "Tell me about workshops"},
+                )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("₹49", response.get_json()["reply"])
+
+    def test_chat_calls_gemini_api_with_conversation_history(self):
         class FakeResponse:
             def __enter__(self):
                 return self
@@ -68,22 +86,37 @@ class ChatbotTests(unittest.TestCase):
 
             def read(self):
                 return json.dumps(
-                    {"choices": [{"message": {"content": "External answer"}}]}
+                    {"candidates": [{"content": {"parts": [{"text": "Gemini answer"}]}}]}
                 ).encode("utf-8")
 
-        with patch.dict(os.environ, {"NVIDIA_API_KEY": "test-key"}):
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}):
             with patch("app.urllib.request.urlopen", return_value=FakeResponse()) as urlopen:
                 response = self.client.post(
                     "/api/chat",
-                    json={"message": "Tell me about courses"},
+                    json={
+                        "message": "Tell me about courses",
+                        "history": [
+                            {"role": "user", "content": "Hello"},
+                            {"role": "assistant", "content": "Welcome"},
+                        ],
+                    },
                 )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.get_json(), {"reply": "External answer"})
+        self.assertEqual(response.get_json(), {"reply": "Gemini answer"})
         request = urlopen.call_args.args[0]
-        self.assertEqual(request.full_url, "https://integrate.api.nvidia.com/v1/chat/completions")
-        self.assertEqual(request.get_header("Authorization"), "Bearer test-key")
+        self.assertEqual(
+            request.full_url,
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            "gemini-3.5-flash-lite:generateContent",
+        )
+        self.assertEqual(request.get_header("X-goog-api-key"), "test-key")
         self.assertEqual(urlopen.call_args.kwargs["timeout"], 8)
+        payload = json.loads(request.data)
+        self.assertEqual(payload["contents"][0]["role"], "user")
+        self.assertEqual(payload["contents"][1]["role"], "model")
+        self.assertEqual(payload["contents"][2]["parts"][0]["text"], "Tell me about courses")
+        self.assertIn("₹49", payload["systemInstruction"]["parts"][0]["text"])
 
     def test_every_site_page_is_served(self):
         for page in app.SITE_PAGES:
@@ -101,7 +134,7 @@ class ChatbotTests(unittest.TestCase):
             finally:
                 response.close()
 
-    def test_botpress_chat_widget_is_available_without_intercom(self):
+    def test_native_chat_widget_is_available_without_botpress_or_intercom(self):
         pages = (
             "about",
             "careers",
@@ -116,11 +149,13 @@ class ChatbotTests(unittest.TestCase):
             response = self.client.get(f"/{page}.html")
             try:
                 self.assertIn(b'id="chatbotToggleBtn"', response.data)
-                self.assertIn(b'id="botpressChatPopup"', response.data)
-                self.assertIn(
-                    b'data-src="https://cdn.botpress.cloud/webchat/v5.0/shareable.html?configUrl=https://files.bpcontent.cloud/2026/11/26/07/20261126074340-LSJ1DEG4.json"',
-                    response.data,
-                )
+                self.assertIn(b'id="chatbotPopup"', response.data)
+                self.assertIn(b'id="chatMessages"', response.data)
+                self.assertIn(b'id="chatForm"', response.data)
+                self.assertIn(b'Courses &amp; Internships', response.data)
+                self.assertIn(b'\xe2\x82\xb949 Live Workshops', response.data)
+                self.assertNotIn(b'<iframe', response.data)
+                self.assertNotIn(b'botpress.cloud', response.data)
                 self.assertNotIn(b'window.intercomSettings', response.data)
                 self.assertNotIn(b'widget.intercom.io', response.data)
             finally:

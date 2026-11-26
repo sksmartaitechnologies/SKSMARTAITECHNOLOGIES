@@ -205,25 +205,33 @@ app.post('/api/users', async (req, res) => {
 
 function builtInChatReply(message) {
   const normalized = message.toLowerCase();
-  if (/certificate|verify|verification/.test(normalized)) {
+  if (/₹\s*49|2[- ]hour|live workshop|workshops?/.test(normalized)) {
     return {
-      reply: 'Enter your certificate ID on the verification page to check it against the official registry.',
-      action: 'verify_certificate'
+      reply: 'Our 2-hour live workshops have a ₹49 registration fee and include a live session plus a verified e-certificate. See /training.html for details. We also offer hands-on 1-, 3- and 6-month internship tracks with project mentoring and placement support.'
     };
   }
-  if (/internship|workshop|bootcamp|placement/.test(normalized)) {
+  if (/fee|fees|price|pricing|cost|schedule|event/.test(normalized)) {
     return {
-      reply: 'We offer hands-on 1-, 3- and 6-month internships, workshops, bootcamps, project mentoring, and placement support. Contact us for the next batch schedule.'
+      reply: 'The 2-hour live workshops cost ₹49 and include a live session plus a verified e-certificate. For course fees or upcoming dates, contact SK SMART AI TECHNOLOGIES at +91 93614 83073.',
+      whatsapp_url: 'https://wa.me/919361483073'
+    };
+  }
+  if (/certificate|verify|verification/.test(normalized)) {
+    return { reply: 'Enter your certificate number or scan the certificate QR code on /verify.html to check it against the official SK SMART AI TECHNOLOGIES registry.', action: 'verify_certificate' };
+  }
+  if (/internship|bootcamp|placement/.test(normalized)) {
+    return {
+      reply: 'Our courses and internships are available online and offline. Topics include Data Science, AI, Machine Learning, Deep Learning, Data Analytics, Full Stack Development, Cloud Computing, Digital Marketing, and Java Programming. See /courses.html and /training.html for details.'
     };
   }
   if (/course|training|learn|class/.test(normalized)) {
     return {
-      reply: 'Our courses include Artificial Intelligence, Machine Learning, Data Science, Data Analytics, Full Stack Development, Generative AI, and Web Design.'
+      reply: 'Our online and offline courses cover Data Science, Artificial Intelligence, Machine Learning, Deep Learning, Data Analytics, Full Stack Development, Cloud Computing, Digital Marketing, and Java Programming. See /courses.html and /training.html.'
     };
   }
   if (/solution|service|enterprise|software|cloud|automation|website|mobile app/.test(normalized)) {
     return {
-      reply: 'We deliver web and mobile applications, enterprise software, cloud platforms, applied AI, workflow automation, and analytics solutions.'
+      reply: 'Our IT solutions include Website Building, Mobile App Development, Software Development, Data Analytics, and Digital Marketing. See /services.html or /contact.html. Call +91 93614 83073 or email sksmartaitechnologies@gmail.com for enquiries.'
     };
   }
   if (/contact|phone|call|email|whatsapp/.test(normalized)) {
@@ -233,45 +241,56 @@ function builtInChatReply(message) {
   }
   return {
     reply: 'I can help with SK SMART AI TECHNOLOGIES courses, IT solutions, internships and workshops, certificate verification, or contacting our team.',
-    options: ['Courses', 'IT solutions', 'Internships and workshops', 'Verify a certificate', 'Contact']
+    options: ['Courses & Internships', '₹49 Live Workshops', 'Verify Certificate', 'IT Solutions & Contact']
   };
 }
 
-async function nvidiaChatReply(message) {
-  const apiKey = process.env.NVIDIA_API_KEY?.trim();
+const CHAT_SYSTEM_PROMPT = 'You are the helpful, concise website assistant for SK SMART AI TECHNOLOGIES. Answer using only these known business details and do not invent prices, schedules, guarantees, or services. Courses and internships are available in online and offline modes and cover Data Science, Artificial Intelligence (AI), Machine Learning, Deep Learning, Data Analytics, Full Stack Development, Cloud Computing, Digital Marketing, and Java Programming. Internship tracks include 1-, 3-, and 6-month options with hands-on projects, mentoring, and placement support. See /courses.html and /training.html. The 2-hour live workshops have a ₹49 registration fee and include a live session plus a verified e-certificate; see /training.html. To verify a certificate, enter its Certificate Number or scan the certificate QR code on /verify.html. IT solutions include website building, mobile app development, software development, data analytics, and digital marketing; see /services.html and /contact.html. Contact the team at +91 93614 83073 or sksmartaitechnologies@gmail.com. Keep replies focused and point visitors to the relevant page when useful.';
+
+function sanitizedChatHistory(history) {
+  if (!Array.isArray(history)) return [];
+  return history.slice(-12).flatMap((item) => {
+    if (!item || typeof item !== 'object') return [];
+    if (!['user', 'assistant'].includes(item.role) || typeof item.content !== 'string' || !item.content.trim()) return [];
+    return [{
+      role: item.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: item.content.trim().slice(0, 2000) }]
+    }];
+  });
+}
+
+async function geminiChatReply(message, history) {
+  const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) return null;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
   try {
-    const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        'x-goog-api-key': apiKey,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: process.env.NVIDIA_MODEL || 'meta/llama-3.1-70b-instruct',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are the SK SMART AI TECHNOLOGIES assistant. Answer clearly about courses, IT solutions, internships, workshops, certificate verification, and contact details. Contact: +91 93614 83073, sksmartaitechnologies@gmail.com. Do not invent prices or schedules.'
-          },
-          { role: 'user', content: message }
+        systemInstruction: { parts: [{ text: CHAT_SYSTEM_PROMPT }] },
+        contents: [
+          ...sanitizedChatHistory(history),
+          { role: 'user', parts: [{ text: message }] }
         ],
-        temperature: 0.3,
-        max_tokens: 400,
-        stream: false
+        generationConfig: { temperature: 0.3, maxOutputTokens: 512 }
       }),
       signal: controller.signal
     });
-    if (!response.ok) throw new Error(`NVIDIA API returned HTTP ${response.status}.`);
+    if (!response.ok) throw new Error(`Gemini API returned HTTP ${response.status}.`);
     const result = await response.json();
-    const reply = result.choices?.[0]?.message?.content;
+    const reply = result.candidates?.[0]?.content?.parts
+      ?.map((part) => typeof part.text === 'string' ? part.text : '')
+      .join('');
     if (typeof reply === 'string' && reply.trim()) return reply.trim();
-    console.error('NVIDIA chat response did not contain a reply; using the built-in assistant.');
+    console.error('Gemini chat response did not contain a reply; using the built-in assistant.');
   } catch (error) {
-    console.warn('NVIDIA chat request failed; using the built-in assistant:', error);
+    console.warn('Gemini chat request failed; using the built-in assistant:', error);
   } finally {
     clearTimeout(timeout);
   }
@@ -283,7 +302,7 @@ app.post('/api/chat', async (req, res) => {
   if (!isNonEmptyString(message)) {
     return res.status(400).json({ error: 'Please enter a message.' });
   }
-  const reply = await nvidiaChatReply(message.trim());
+  const reply = await geminiChatReply(message.trim(), req.body?.history);
   return res.status(200).json(reply ? { reply } : builtInChatReply(message.trim()));
 });
 

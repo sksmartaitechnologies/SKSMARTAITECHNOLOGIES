@@ -57,6 +57,7 @@ COURSES = (
     "Data Analytics",
     "Business Analytics",
     "Full Stack Development",
+    "Cloud Computing",
     "Cyber Security",
     "Digital Marketing",
     "Java Programming",
@@ -74,11 +75,27 @@ SERVICES = (
     "Digital Marketing",
 )
 QUICK_OPTIONS = (
-    "Courses",
-    "IT solutions",
-    "Internships and workshops",
-    "Verify a certificate",
-    "Contact",
+    "Courses & Internships",
+    "₹49 Live Workshops",
+    "Verify Certificate",
+    "IT Solutions & Contact",
+)
+CHAT_SYSTEM_PROMPT = (
+    "You are the helpful, concise website assistant for SK SMART AI TECHNOLOGIES. "
+    "Answer using only these known business details and do not invent prices, schedules, "
+    "guarantees, or services. Courses and internships are available in online and offline "
+    "modes and cover Data Science, Artificial Intelligence (AI), Machine Learning, Deep "
+    "Learning, Data Analytics, Full Stack Development, Cloud Computing, Digital Marketing, "
+    "and Java Programming. Internship tracks include 1-, 3-, and 6-month options with "
+    "hands-on projects, mentoring, and placement support. See /courses.html and "
+    "/training.html. The 2-hour live workshops "
+    "have a ₹49 registration fee and include a live session plus a verified e-certificate; "
+    "see /training.html. To verify a certificate, enter its Certificate Number or scan the "
+    "certificate QR code on /verify.html. IT solutions include website building, mobile app "
+    "development, software development, data analytics, and digital marketing; see "
+    "/services.html and /contact.html. Contact the team at +91 93614 83073 or "
+    "sksmartaitechnologies@gmail.com. Keep replies focused and point visitors to the "
+    "relevant page when useful."
 )
 
 CORS(
@@ -112,28 +129,39 @@ def site_file(filename):
 def build_chat_reply(message):
     normalized = message.casefold()
 
+    if re.search(r"(₹\s*49|2[- ]hour|live workshop|workshops?)", normalized):
+        return {
+            "reply": (
+                "Our 2-hour live workshops have a ₹49 registration fee and include a live "
+                "session plus a verified e-certificate. See /training.html for details. "
+                "We also offer hands-on 1-, 3- and 6-month internship tracks with project "
+                "mentoring and placement support."
+            ),
+        }
     if re.search(r"\b(fee|fees|price|pricing|cost|event|events|schedule)\b", normalized):
         return {
             "reply": (
-                "For current fees and upcoming events, contact SK SMART AI "
-                "TECHNOLOGIES at 9361483073."
+                "The 2-hour live workshops cost ₹49 and include a live session plus a "
+                "verified e-certificate. For course fees or upcoming dates, contact "
+                "SK SMART AI TECHNOLOGIES at +91 93614 83073."
             ),
             "whatsapp_url": WHATSAPP_CONTACT_URL,
         }
     if re.search(r"\b(certificate|certificates|verify|verification)\b", normalized):
         return {
             "reply": (
-                "Enter your certificate number or ID on the verification page to check it "
-                "against the official SK SMART AI TECHNOLOGIES registry."
+                "Enter your certificate number or scan the certificate QR code on "
+                "/verify.html to check it against the official SK SMART AI TECHNOLOGIES registry."
             ),
             "action": "verify_certificate",
         }
-    if re.search(r"\b(internship|internships|workshop|workshops|bootcamp|placement)\b", normalized):
+    if re.search(r"\b(internship|internships|bootcamp|placement)\b", normalized):
         return {
             "reply": (
-                "We offer hands-on 1-, 3- and 6-month internship tracks, live workshops "
-                "and bootcamps, project mentoring, and placement support. Contact us "
-                "for the next batch schedule."
+                "Our courses and internships are available online and offline. Topics include "
+                "Data Science, AI, Machine Learning, Deep Learning, Data Analytics, Full Stack "
+                "Development, Cloud Computing, Digital Marketing, and Java Programming. See "
+                "/courses.html and /training.html for details."
             ),
             "options": QUICK_OPTIONS,
         }
@@ -148,9 +176,11 @@ def build_chat_reply(message):
     if re.search(r"\b(service|services|enterprise|solution|solutions|website|mobile app|software|cloud|automation)\b", normalized):
         return {
             "reply": (
-                "SK SMART AI TECHNOLOGIES delivers web and mobile applications, "
-                "software and cloud platforms, applied AI, automation, and analytics. "
+                "SK SMART AI TECHNOLOGIES offers website building, mobile app development, "
+                "software development, data analytics, and digital marketing. "
                 "Here are our core services:\n• " + "\n• ".join(SERVICES)
+                + "\nFor enquiries, call +91 93614 83073 or email "
+                "sksmartaitechnologies@gmail.com."
             ),
         }
     if re.search(r"\b(contact|phone|call|whatsapp)\b", normalized):
@@ -171,38 +201,42 @@ def build_chat_reply(message):
     }
 
 
-def nvidia_chat_reply(message):
-    api_key = os.environ.get("NVIDIA_API_KEY", "").strip()
+def sanitized_chat_history(history):
+    if not isinstance(history, list):
+        return []
+    messages = []
+    for item in history[-12:]:
+        if not isinstance(item, dict):
+            continue
+        role = item.get("role")
+        content = item.get("content")
+        if role in ("user", "assistant") and isinstance(content, str) and content.strip():
+            messages.append(
+                {
+                    "role": "user" if role == "user" else "model",
+                    "parts": [{"text": content.strip()[:2000]}],
+                }
+            )
+    return messages
+
+
+def gemini_chat_reply(message, history=None):
+    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not api_key:
         return None
 
     payload = {
-        "model": os.environ.get("NVIDIA_MODEL", "meta/llama-3.1-70b-instruct"),
-        "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "You are the assistant for SK SMART AI TECHNOLOGIES. Answer questions "
-                    "about its courses, IT solutions, internships, workshops, certificate "
-                    "verification, and contact details. Courses include "
-                    f"{', '.join(COURSES)}. Core services include {', '.join(SERVICES)}. "
-                    "The team offers 1-, 3- and 6-month internships and live workshops. "
-                    "Contact: +91 93614 83073 or sksmartaitechnologies@gmail.com. "
-                    "Be concise and do not invent specific prices or schedules; ask the "
-                    "visitor to contact the team for current availability."
-                ),
-            },
-            {"role": "user", "content": message},
-        ],
-        "temperature": 0.3,
-        "max_tokens": 400,
-        "stream": False,
+        "systemInstruction": {"parts": [{"text": CHAT_SYSTEM_PROMPT}]},
+        "contents": sanitized_chat_history(history)
+        + [{"role": "user", "parts": [{"text": message}]}],
+        "generationConfig": {"temperature": 0.3, "maxOutputTokens": 512},
     }
     request = urllib.request.Request(
-        "https://integrate.api.nvidia.com/v1/chat/completions",
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        "gemini-3.5-flash-lite:generateContent",
         data=json.dumps(payload).encode("utf-8"),
         headers={
-            "Authorization": f"Bearer {api_key}",
+            "x-goog-api-key": api_key,
             "Content-Type": "application/json",
         },
         method="POST",
@@ -219,13 +253,17 @@ def nvidia_chat_reply(message):
         UnicodeDecodeError,
         json.JSONDecodeError,
     ) as error:
-        app.logger.warning("NVIDIA chat request failed; using built-in response: %s", error)
+        app.logger.warning("Gemini chat request failed; using built-in response: %s", error)
         return None
 
     try:
-        reply = result["choices"][0]["message"]["content"]
-    except (KeyError, IndexError, TypeError) as error:
-        app.logger.warning("NVIDIA chat response was invalid; using built-in response: %s", error)
+        reply = "".join(
+            part.get("text", "")
+            for part in result["candidates"][0]["content"]["parts"]
+            if isinstance(part.get("text"), str)
+        )
+    except (KeyError, IndexError, TypeError, AttributeError) as error:
+        app.logger.warning("Gemini chat response was invalid; using built-in response: %s", error)
         return None
     return reply.strip() if isinstance(reply, str) and reply.strip() else None
 
@@ -241,7 +279,7 @@ def chat():
         return jsonify({"error": "Please enter a message."}), 400
 
     message = message.strip()
-    external_reply = nvidia_chat_reply(message)
+    external_reply = gemini_chat_reply(message, data.get("history"))
     if external_reply:
         return jsonify({"reply": external_reply})
     return jsonify(build_chat_reply(message))

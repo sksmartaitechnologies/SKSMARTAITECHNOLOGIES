@@ -739,18 +739,75 @@ window.addEventListener('DOMContentLoaded', () => {
 window.addEventListener('DOMContentLoaded', () => {
   const widget = document.getElementById('chatbotWidget');
   const toggle = document.getElementById('chatbotToggleBtn');
-  const popup = document.getElementById('botpressChatPopup');
+  const popup = document.getElementById('chatbotPopup');
   const closeButton = document.getElementById('closeChatbotBtn');
-  const iframe = document.getElementById('botpressChatFrame');
-  if (!widget || !toggle || !popup || !iframe) return;
+  const messages = document.getElementById('chatMessages');
+  const chatForm = document.getElementById('chatForm');
+  const chatInput = document.getElementById('chatInput');
+  const sendButton = document.getElementById('chatSendBtn');
+  if (!widget || !toggle || !popup || !messages || !chatForm || !chatInput || !sendButton) return;
 
+  const history = [];
   const setChatOpen = (isOpen) => {
     popup.hidden = !isOpen;
     toggle.setAttribute('aria-expanded', String(isOpen));
     toggle.setAttribute('aria-label', isOpen ? 'Close chat' : 'Open chat');
-    if (isOpen && iframe.dataset.loaded !== 'true') {
-      iframe.src = iframe.dataset.src;
-      iframe.dataset.loaded = 'true';
+    if (isOpen) chatInput.focus();
+  };
+
+  const appendMessage = (content, className) => {
+    const bubble = document.createElement('p');
+    bubble.className = `chat-bubble ${className}`;
+    bubble.textContent = content;
+    messages.appendChild(bubble);
+    messages.scrollTop = messages.scrollHeight;
+    return bubble;
+  };
+
+  const sendMessage = async (value) => {
+    const message = value.trim();
+    if (!message || sendButton.disabled) return;
+
+    messages.querySelector('.chat-quick-replies')?.remove();
+    appendMessage(message, 'user-bubble');
+    chatInput.value = '';
+    chatInput.disabled = true;
+    sendButton.disabled = true;
+    popup.querySelectorAll('.chat-quick-reply').forEach((button) => {
+      button.disabled = true;
+    });
+    const typingBubble = appendMessage('Thinking...', 'assistant-bubble chat-typing');
+
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, history: history.slice(-12) })
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'The assistant could not process your message.');
+      }
+      if (typeof result.reply !== 'string' || !result.reply.trim()) {
+        throw new Error('The assistant returned an empty response. Please try again.');
+      }
+
+      history.push(
+        { role: 'user', content: message },
+        { role: 'assistant', content: result.reply }
+      );
+      history.splice(0, Math.max(0, history.length - 12));
+      typingBubble.textContent = result.reply;
+      typingBubble.classList.remove('chat-typing');
+    } catch (error) {
+      typingBubble.textContent = error instanceof Error
+        ? error.message
+        : 'Unable to reach the assistant. Please try again.';
+      typingBubble.classList.add('chat-error');
+    } finally {
+      chatInput.disabled = false;
+      sendButton.disabled = false;
+      chatInput.focus();
     }
   };
 
@@ -758,6 +815,15 @@ window.addEventListener('DOMContentLoaded', () => {
     setChatOpen(popup.hidden);
   });
   closeButton?.addEventListener('click', () => setChatOpen(false));
+  chatForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    void sendMessage(chatInput.value);
+  });
+  popup.querySelectorAll('.chat-quick-reply').forEach((button) => {
+    button.addEventListener('click', () => {
+      void sendMessage(button.textContent || '');
+    });
+  });
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && !popup.hidden) {
       setChatOpen(false);

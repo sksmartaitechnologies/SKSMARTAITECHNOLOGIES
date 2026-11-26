@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 
 process.env.DATABASE_URL = 'postgresql://test:test@127.0.0.1:1/test';
-process.env.NVIDIA_API_KEY = '';
+process.env.GEMINI_API_KEY = '';
 process.env.VERCEL = '1';
 
 const [{ default: app }, { pool }] = await Promise.all([
@@ -178,11 +178,11 @@ test('API parser errors and unknown endpoints return JSON instead of HTML', asyn
   });
 });
 
-test('chat falls back to the built-in response when NVIDIA is unavailable', async () => {
+test('chat falls back to the built-in response when Gemini is unavailable', async () => {
   const originalFetch = globalThis.fetch;
-  process.env.NVIDIA_API_KEY = 'test-key';
+  process.env.GEMINI_API_KEY = 'test-key';
   globalThis.fetch = async (input, options) => {
-    if (String(input).startsWith('https://integrate.api.nvidia.com/')) {
+    if (String(input).startsWith('https://generativelanguage.googleapis.com/')) {
       throw new Error('simulated timeout');
     }
     return originalFetch(input, options);
@@ -197,11 +197,80 @@ test('chat falls back to the built-in response when NVIDIA is unavailable', asyn
     });
   } finally {
     globalThis.fetch = originalFetch;
-    process.env.NVIDIA_API_KEY = '';
+    process.env.GEMINI_API_KEY = '';
   }
 
   assert.equal(response.status, 200);
-  assert.match((await response.json()).reply, /workshops/i);
+  assert.match((await response.json()).reply, /2-hour live workshops/i);
+});
+
+test('chat sends history to Gemini and returns its response', async () => {
+  const originalFetch = globalThis.fetch;
+  process.env.GEMINI_API_KEY = 'test-key';
+  let geminiRequest;
+  globalThis.fetch = async (input, options) => {
+    if (String(input).startsWith('https://generativelanguage.googleapis.com/')) {
+      geminiRequest = { input: String(input), options };
+      return new Response(JSON.stringify({
+        candidates: [{ content: { parts: [{ text: 'Gemini answer' }] } }]
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    return originalFetch(input, options);
+  };
+
+  let response;
+  try {
+    response = await originalFetch(`${baseUrl}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: 'Tell me about courses',
+        history: [
+          { role: 'user', content: 'Hello' },
+          { role: 'assistant', content: 'Welcome' }
+        ]
+      })
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+    process.env.GEMINI_API_KEY = '';
+  }
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { reply: 'Gemini answer' });
+  assert.equal(geminiRequest.input, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent');
+  assert.equal(geminiRequest.options.headers['x-goog-api-key'], 'test-key');
+  const payload = JSON.parse(geminiRequest.options.body);
+  assert.equal(payload.contents[0].role, 'user');
+  assert.equal(payload.contents[1].role, 'model');
+  assert.equal(payload.contents[2].parts[0].text, 'Tell me about courses');
+  assert.match(payload.systemInstruction.parts[0].text, /₹49/);
+});
+
+test('chat falls back when Gemini rate limits requests', async () => {
+  const originalFetch = globalThis.fetch;
+  process.env.GEMINI_API_KEY = 'test-key';
+  globalThis.fetch = async (input, options) => {
+    if (String(input).startsWith('https://generativelanguage.googleapis.com/')) {
+      return new Response('{}', { status: 429 });
+    }
+    return originalFetch(input, options);
+  };
+
+  let response;
+  try {
+    response = await originalFetch(`${baseUrl}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'Tell me about workshops.' })
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+    process.env.GEMINI_API_KEY = '';
+  }
+
+  assert.equal(response.status, 200);
+  assert.match((await response.json()).reply, /₹49/);
 });
 
 test('users and certificate endpoints handle GET, POST, and CORS preflight requests', async () => {

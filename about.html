@@ -349,12 +349,27 @@
     </div>
 
     <div class="chatbot-widget" id="chatbotWidget">
-        <section class="botpress-chat-popup" id="botpressChatPopup" aria-labelledby="botpressChatTitle" hidden>
-            <header class="botpress-chat-header">
-                <span id="botpressChatTitle">SK SMART AI Assistant</span>
+        <section class="chat-popup" id="chatbotPopup" aria-labelledby="chatTitle" hidden>
+            <header class="chat-popup-header">
+                <span id="chatTitle">SK SMART AI Assistant</span>
                 <button class="chatbot-close-btn" id="closeChatbotBtn" type="button" aria-label="Close chat">&times;</button>
             </header>
-            <iframe class="botpress-chat-frame" id="botpressChatFrame" title="SK SMART AI Assistant chat" data-src="https://cdn.botpress.cloud/webchat/v5.0/shareable.html?configUrl=https://files.bpcontent.cloud/2026/11/26/07/20261126074340-LSJ1DEG4.json" loading="lazy"></iframe>
+            <div class="chat-messages" id="chatMessages" role="log" aria-live="polite" aria-relevant="additions">
+                <div class="chat-welcome">
+                    <p class="chat-bubble assistant-bubble">Welcome! I’m the SK SMART AI Assistant. How can I help you today?</p>
+                    <div class="chat-quick-replies" aria-label="Quick questions">
+                        <button class="chat-quick-reply" type="button">Courses &amp; Internships</button>
+                        <button class="chat-quick-reply" type="button">₹49 Live Workshops</button>
+                        <button class="chat-quick-reply" type="button">Verify Certificate</button>
+                        <button class="chat-quick-reply" type="button">IT Solutions &amp; Contact</button>
+                    </div>
+                </div>
+            </div>
+            <form class="chat-composer" id="chatForm">
+                <label class="sr-only" for="chatInput">Message the SK SMART AI Assistant</label>
+                <input id="chatInput" name="message" type="text" placeholder="Type your message..." autocomplete="off" maxlength="2000" required>
+                <button id="chatSendBtn" type="submit">Send</button>
+            </form>
         </section>
         <button class="chatbot-toggle-btn" id="chatbotToggleBtn" type="button" aria-label="Open chat" aria-expanded="false">
             <i class="fas fa-robot" aria-hidden="true"></i>
