@@ -101,12 +101,25 @@ class ChatbotTests(unittest.TestCase):
             finally:
                 response.close()
 
-    def test_chatbot_is_available_on_existing_chatbot_pages(self):
-        for page in ("about", "contact", "courses", "index", "services", "training"):
+    def test_intercom_is_available_without_the_old_chatbot_widget(self):
+        pages = (
+            "about",
+            "careers",
+            "contact",
+            "courses",
+            "index",
+            "services",
+            "training",
+            "verify",
+        )
+        for page in pages:
             response = self.client.get(f"/{page}.html")
             try:
-                self.assertIn(b'id="chatbotToggleBtn"', response.data)
-                self.assertIn(b'id="chatUserInput"', response.data)
+                self.assertIn(b'api_base: "https://api-iam.intercom.io"', response.data)
+                self.assertIn(b'app_id: "wkspace_01M8BCHXJZMPS0Z9MBWYQ7TBSG"', response.data)
+                self.assertIn(b'https://widget.intercom.io/widget/wkspace_01M8BCHXJZMPS0Z9MBWYQ7TBSG', response.data)
+                self.assertNotIn(b'chatbotToggleBtn', response.data)
+                self.assertNotIn(b'chatUserInput', response.data)
             finally:
                 response.close()
 

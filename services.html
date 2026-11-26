@@ -135,30 +135,6 @@
         <span>Register Now</span>
     </button>
 
-    <!-- AI CHATBOT WIDGET -->
-    <div class="chatbot-widget">
-        <button class="chatbot-toggle-btn" id="chatbotToggleBtn" type="button" title="Chat with SK SMART AI TECHNOLOGIES" aria-label="Open chat" aria-expanded="false">
-            <i class="fas fa-robot"></i>
-        </button>
-        <div class="chatbot-window glass" id="chatbotWindow">
-            <div class="chatbot-header">
-                <div class="bot-info">
-                    <i class="fas fa-robot"></i>
-                    <div>
-                        <h4>SK AI Assistant</h4>
-                        <span>SK SMART AI TECHNOLOGIES</span>
-                    </div>
-                </div>
-                <button class="close-bot" id="closeBotBtn" type="button"><i class="fas fa-times"></i></button>
-            </div>
-            <div class="chatbot-messages" id="chatbotMessages" aria-live="polite"></div>
-            <div class="chatbot-input-area">
-                <input type="text" id="chatUserInput" placeholder="Choose an option or type a question..." onkeypress="handleChatKeyPress(event)" aria-label="Type your message">
-                <button type="button" onclick="sendChatMessage()" aria-label="Send message"><i class="fas fa-paper-plane"></i></button>
-            </div>
-        </div>
-    </div>
-
     <!-- MODALS -->
     <div class="modal-overlay" id="authModal">
         <div class="modal-content glass auth-modal-content">
@@ -328,5 +304,14 @@
     </div>
 
     <script src="script.js"></script>
+    <script>
+      window.intercomSettings = {
+        api_base: "https://api-iam.intercom.io",
+        app_id: "wkspace_01M8BCHXJZMPS0Z9MBWYQ7TBSG"
+      };
+    </script>
+    <script>
+      (function(){var w=window;var ic=w.Intercom;if(typeof ic==="function"){ic('reattach_activator');ic('update',w.intercomSettings);}else{var d=document;var i=function(){i.c(arguments);};i.q=[];i.c=function(args){i.q.push(args);};w.Intercom=i;var l=function(){var s=d.createElement('script');s.type='text/javascript';s.async=true;s.src='https://widget.intercom.io/widget/wkspace_01M8BCHXJZMPS0Z9MBWYQ7TBSG';var x=d.getElementsByTagName('script')[0];x.parentNode.insertBefore(s,x);};if(document.readyState==='complete'){l();}else if(w.attachEvent){w.attachEvent('onload',l);}else{w.addEventListener('load',l,false);}}})();
+    </script>
 </body>
 </html>
